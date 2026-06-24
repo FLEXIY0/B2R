@@ -105,6 +105,9 @@
   - [x] `P2pSnapshotCodec` (JSON DTO ↔ `B2rFeedEntry`).
   - [x] `MqttP2pReplicationService`: тянет snapshot у брокера, мержит новые посты
         в Room по LWW (`modifiedAt`, tombstone). Фабрика строит его при наличии брокера.
-  - [ ] *(Стадия 2)* Android-реализация `DiscoveryBroker` на OkHttp WebSocket
-        (минимальный MQTT 3.1.1 к публичным брокерам), Hilt-провайдер вместо NoOp.
+  - [x] *(Стадия 2)* `OkHttpMqttDiscoveryBroker` (app): минимальный MQTT 3.1.1
+        поверх OkHttp WebSocket к публичным брокерам (emqx/hivemq/mosquitto),
+        retained-mailbox. `MqttWireFormat` — ручной кодек пакетов. Hilt-провайдер
+        отдаёт реальный брокер в `B2rFeedRepository`. ⚠️ компилируется, но требует
+        теста на устройстве против живого брокера.
   - [ ] *(позже)* `DirectReplicator` (WebRTC) для прямой phone-to-phone докачки.

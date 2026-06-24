@@ -8,9 +8,12 @@ import javax.inject.Singleton
 import net.primal.android.networking.di.PrimalCacheApiClient
 import net.primal.android.nostr.notary.NostrNotary
 import net.primal.core.caching.MediaCacher
+import net.primal.android.b2r.p2p.OkHttpMqttDiscoveryBroker
 import net.primal.core.networking.primal.PrimalApiClient
 import net.primal.data.repository.b2r.B2rFeedRepository
+import net.primal.data.repository.b2r.p2p.DiscoveryBroker
 import net.primal.data.repository.factory.PrimalRepositoryFactory
+import okhttp3.OkHttpClient
 import net.primal.domain.bookmarks.PublicBookmarksRepository
 import net.primal.domain.events.EventInteractionRepository
 import net.primal.domain.events.EventRelayHintsRepository
@@ -107,13 +110,19 @@ object CachingRepositoriesModule {
             mediaCacher = mediaCacher,
         )
 
-    // b2r fork (Sprint 2.1): the serverless feed repository, injectable into any
-    // ViewModel. Reads the local Room log and reconciles over the P2P seam
-    // (NoOpP2pReplicationService until the transport lands). No PrimalApiClient.
+    // b2r fork (point 1): discovery broker over public MQTT (WebSocket mailbox).
     @Provides
     @Singleton
-    fun provideB2rFeedRepository(): B2rFeedRepository =
-        PrimalRepositoryFactory.createB2rFeedRepository()
+    fun provideB2rDiscoveryBroker(okHttpClient: OkHttpClient): DiscoveryBroker =
+        OkHttpMqttDiscoveryBroker(okHttpClient = okHttpClient)
+
+    // b2r fork (Sprint 2.1): the serverless feed repository, injectable into any
+    // ViewModel. Reads the local Room log and reconciles over the P2P layer —
+    // now backed by the real MQTT discovery broker. No PrimalApiClient.
+    @Provides
+    @Singleton
+    fun provideB2rFeedRepository(discoveryBroker: DiscoveryBroker): B2rFeedRepository =
+        PrimalRepositoryFactory.createB2rFeedRepository(discoveryBroker = discoveryBroker)
 
     @Provides
     fun provideFeedsRepository(
