@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
 import androidx.room.TypeConverters
+import net.primal.data.local.dao.b2r.B2rFeedEntry
+import net.primal.data.local.dao.b2r.B2rFeedEntryDao
 import net.primal.data.local.dao.bookmarks.PublicBookmark
 import net.primal.data.local.dao.bookmarks.PublicBookmarkDao
 import net.primal.data.local.dao.events.EventRelayHints
@@ -136,8 +138,14 @@ import net.primal.shared.data.local.serialization.ListsTypeConverters
         RecommendedDvmFeedCrossRef::class,
         DvmFeedFeaturedUserCrossRef::class,
         RecentSearch::class,
+        // b2r fork (Sprint 1.4): local feed log table (LWW + tombstones).
+        B2rFeedEntry::class,
     ],
-    version = 34,
+    // b2r fork: bumped from 34 to add the B2rFeedEntry table. Existing Nostr
+    // cache tables are retained for now and retired in Step 2 as repositories
+    // migrate onto the local log; runtime uses destructive migration (fork has
+    // no backward-compat requirement).
+    version = 35,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -227,6 +235,9 @@ abstract class PrimalDatabase : RoomDatabase() {
     abstract fun dvmFeeds(): DvmFeedDao
 
     abstract fun recentSearches(): RecentSearchDao
+
+    // b2r fork (Sprint 1.4): local feed log accessor.
+    abstract fun b2rFeed(): B2rFeedEntryDao
 }
 
 // The Room compiler generates the `actual` implementations.

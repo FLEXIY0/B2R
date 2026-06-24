@@ -73,8 +73,13 @@
   - [ ] *(остаётся)* Снять зависимость Quartz / `:core:nips` / `:domain:nostr`
         из data-слоя (крупный рефакторинг ~20 модулей; делать по шву).
         Логику ключей secp256k1 сохранить (нужна в 2.2).
-- [ ] **1.4 Пересборка Room** (`:data:caching:local`) — удалить Nostr-Entity,
-      ввести схему b2r (LWW: `mt`/tombstones; колонка `sequence_id` как лог. счётчик).
+- [~] **1.4 Пересборка Room** (`:data:caching:local`) — *в работе*
+  - [x] Введена b2r-схема лента-лога: entity `B2rFeedEntry` + DAO `B2rFeedEntryDao`
+        (`authorPubkey`, `sequenceId`, `createdAt`, `modifiedAt`/LWW, `deleted`-tombstone,
+        `signature`). Зарегистрирована в `PrimalDatabase`, версия 34→35.
+        `fallbackToDestructiveMigration=true` уже включён → апгрейд безопасен.
+  - [ ] *(остаётся)* По мере переноса репозиториев (Шаг 2) ретайрить старые
+        Nostr-event entity (events/notes/reposts и пр.).
 
 ### Шаг 2 — Замена «сердца»
 - [ ] **2.1 Репозитории** (`:data:caching:repository`) — `fetchFeed()` читает из Room
