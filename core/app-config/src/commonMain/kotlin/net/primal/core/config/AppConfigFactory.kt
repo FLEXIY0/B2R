@@ -10,9 +10,14 @@ import net.primal.core.networking.factory.HttpClientFactory
 import net.primal.core.utils.coroutines.createDispatcherProvider
 import net.primal.domain.global.AppConfig
 
-private const val CONFIG_CACHE_API = "wss://cache1.primal.net/v1"
-private const val CONFIG_UPLOAD_API = "wss://uploads.primal.net/v1"
-private const val CONFIG_WALLET_API = "wss://wallet.primal.net/v1"
+// b2r fork (Sprint 1.2): the original Primal centralized cache/upload/wallet
+// endpoints are removed. b2r has no central server — feed data is served from
+// the local Room cache and replicated peer-to-peer. These ".invalid" sentinels
+// never resolve, guaranteeing the app makes no outbound request to any Primal
+// server even if a stray code path still reads these URLs.
+private const val CONFIG_CACHE_API = "wss://disabled.b2r.invalid/v1"
+private const val CONFIG_UPLOAD_API = "wss://disabled.b2r.invalid/v1"
+private const val CONFIG_WALLET_API = "wss://disabled.b2r.invalid/v1"
 
 internal val DEFAULT_APP_CONFIG = AppConfig(
     cacheUrl = CONFIG_CACHE_API,

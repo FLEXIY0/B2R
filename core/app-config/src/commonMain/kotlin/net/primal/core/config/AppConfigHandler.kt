@@ -41,11 +41,13 @@ class AppConfigHandler internal constructor(
     }
 
     private suspend fun fetchAppConfigOrNull(): ApiConfigResponse? {
-        val result = runCatching {
-            withContext(dispatcherProvider.io()) { wellKnownApi.fetchApiConfig() }
-        }
-        result.exceptionOrNull()?.let { Napier.w("Unable to fetch app config", it) }
-        return result.getOrNull()
+        // b2r fork (Sprint 1.2): the dynamic endpoint discovery that fetched
+        // server lists from https://primal.net/.well-known/primal-endpoints.json
+        // is disabled. b2r is serverless, so there is no remote config to pull.
+        // We keep the method (and the wellKnownApi wiring) so signatures and the
+        // Updater contract stay intact, but it never performs a network call.
+        Napier.d("b2r: remote app-config fetch is disabled; using local defaults.")
+        return null
     }
 
     suspend fun overrideCacheUrl(url: String) = appConfigStore.overrideCacheUrl(url = url)

@@ -38,7 +38,12 @@ object NetworkingModule {
     @Singleton
     fun unauthenticatedRetrofit(okHttpClient: OkHttpClient): Retrofit =
         Retrofit.Builder()
-            .baseUrl("https://primal.net")
+            // b2r fork (Sprint 1.2): default base host moved off Primal. b2r is
+            // serverless; any relative-path call against this client now targets
+            // a non-resolving ".invalid" host instead of primal.net. Remaining
+            // absolute-URL Primal calls (media/blossom CDN) are removed in later
+            // sprints as their features are repointed at the P2P/local cache.
+            .baseUrl("https://disabled.b2r.invalid")
             .client(okHttpClient)
             .addConverterFactory(ScalarsConverterFactory.create())
             .addConverterFactory(CommonJson.asConverterFactory("application/json".toMediaType()))
