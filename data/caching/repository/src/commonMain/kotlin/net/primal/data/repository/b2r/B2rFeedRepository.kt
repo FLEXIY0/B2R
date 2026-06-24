@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import net.primal.core.utils.coroutines.DispatcherProvider
 import net.primal.data.local.dao.b2r.B2rFeedEntry
 import net.primal.data.local.db.PrimalDatabase
