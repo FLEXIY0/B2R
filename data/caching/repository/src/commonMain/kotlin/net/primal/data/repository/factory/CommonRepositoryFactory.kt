@@ -8,8 +8,9 @@ import net.primal.data.remote.factory.PrimalApiServiceFactory
 import net.primal.data.repository.UserDataCleanupRepositoryImpl
 import net.primal.data.repository.articles.ArticleRepositoryImpl
 import net.primal.data.repository.b2r.B2rFeedRepository
+import net.primal.data.repository.b2r.p2p.DiscoveryBroker
+import net.primal.data.repository.b2r.p2p.MqttP2pReplicationService
 import net.primal.data.repository.b2r.p2p.NoOpP2pReplicationService
-import net.primal.data.repository.b2r.p2p.P2pReplicationService
 import net.primal.data.repository.articles.HighlightRepositoryImpl
 import net.primal.data.repository.bookmarks.PublicBookmarksRepositoryImpl
 import net.primal.data.repository.broadcast.PremiumBroadcastRepositoryImpl
@@ -148,12 +149,21 @@ abstract class CommonRepositoryFactory {
      * replication service until the MQTT/WebRTC transport is wired in.
      */
     fun createB2rFeedRepository(
-        p2pReplicationService: P2pReplicationService = NoOpP2pReplicationService(),
+        discoveryBroker: DiscoveryBroker? = null,
     ): B2rFeedRepository {
+        val replicationService = if (discoveryBroker != null) {
+            MqttP2pReplicationService(
+                database = resolveCachingDatabase(),
+                discoveryBroker = discoveryBroker,
+                dispatcherProvider = dispatcherProvider,
+            )
+        } else {
+            NoOpP2pReplicationService()
+        }
         return B2rFeedRepository(
             database = resolveCachingDatabase(),
             dispatcherProvider = dispatcherProvider,
-            p2pReplicationService = p2pReplicationService,
+            p2pReplicationService = replicationService,
         )
     }
 

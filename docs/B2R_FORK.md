@@ -99,8 +99,12 @@
   - [ ] *(остаётся)* Применить формат в остальных точках показа ключа;
         генерация secp256k1 «в Android Keystore» — ограничена (Keystore не
         поддерживает secp256k1 аппаратно), ключ остаётся в защищённом хранилище Primal.
-- [~] **2.3 P2P-абстракция** — *в работе*
-  - [x] `P2pReplicationService` (интерфейс) + `NoOpP2pReplicationService` (заглушка)
-        в `:data:caching:repository`. Шов готов, репозиторий компилируется поверх.
-  - [ ] *(остаётся)* Реальный транспорт: `DiscoveryBroker` (MQTT/retained mailbox),
-        `DirectReplicator` (WebRTC), merge-слой (LWW). Возможно вынести в `:core:p2p`.
+- [~] **2.3 / Point 1 — P2P-транспорт** — *в работе*
+  - [x] `P2pReplicationService` + `NoOpP2pReplicationService` (шов).
+  - [x] `DiscoveryBroker` (MQTT-mailbox, интерфейс) + `AuthorSnapshot`.
+  - [x] `P2pSnapshotCodec` (JSON DTO ↔ `B2rFeedEntry`).
+  - [x] `MqttP2pReplicationService`: тянет snapshot у брокера, мержит новые посты
+        в Room по LWW (`modifiedAt`, tombstone). Фабрика строит его при наличии брокера.
+  - [ ] *(Стадия 2)* Android-реализация `DiscoveryBroker` на OkHttp WebSocket
+        (минимальный MQTT 3.1.1 к публичным брокерам), Hilt-провайдер вместо NoOp.
+  - [ ] *(позже)* `DirectReplicator` (WebRTC) для прямой phone-to-phone докачки.
