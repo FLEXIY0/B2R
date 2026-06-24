@@ -86,9 +86,10 @@
   - [x] `B2rFeedRepository`: `observeFeed()` читает **строго из локального лога** Room
         (`B2rFeedEntryDao`), `syncSubscriptions()` считает watermark (max `sequenceId`
         на автора) и пингует `P2pReplicationService`. UI «думает», что это облако.
-  - [ ] *(остаётся)* Переключить Primal `FeedRepositoryImpl`/UI на делегирование
-        в `B2rFeedRepository` (сейчас это параллельная чистая реализация, чтобы не
-        дестабилизировать сложный paging-репозиторий Primal вслепую).
+  - [x] Подключён в `CommonRepositoryFactory.createB2rFeedRepository()` (default
+        `NoOpP2pReplicationService`) — репозиторий теперь инжектируемый.
+  - [ ] *(остаётся)* Провайдер в Hilt-DI `:app` + переключение существующего
+        UI/`FeedRepositoryImpl` на делегирование в `B2rFeedRepository`.
 - [~] **2.2 Ключи профиля** — *в работе*
   - [x] `B2rKeyFormatter` (`:core:utils`): display-only `npub…`↔`b2r_pub…`
         (без смены bech32-HRP — `_` невалиден в HRP и сломал бы декод/подписи).

@@ -7,6 +7,9 @@ import net.primal.data.local.db.PrimalDatabase
 import net.primal.data.remote.factory.PrimalApiServiceFactory
 import net.primal.data.repository.UserDataCleanupRepositoryImpl
 import net.primal.data.repository.articles.ArticleRepositoryImpl
+import net.primal.data.repository.b2r.B2rFeedRepository
+import net.primal.data.repository.b2r.p2p.NoOpP2pReplicationService
+import net.primal.data.repository.b2r.p2p.P2pReplicationService
 import net.primal.data.repository.articles.HighlightRepositoryImpl
 import net.primal.data.repository.bookmarks.PublicBookmarksRepositoryImpl
 import net.primal.data.repository.broadcast.PremiumBroadcastRepositoryImpl
@@ -135,6 +138,22 @@ abstract class CommonRepositoryFactory {
             feedApi = PrimalApiServiceFactory.createFeedApi(cachingPrimalApiClient),
             database = resolveCachingDatabase(),
             mediaCacher = mediaCacher,
+        )
+    }
+
+    /**
+     * b2r fork (Sprint 2.1/2.3): the serverless feed repository. Unlike
+     * [createFeedRepository], this takes no PrimalApiClient — it reads the local
+     * Room log and reconciles via the P2P layer. Defaults to the no-op
+     * replication service until the MQTT/WebRTC transport is wired in.
+     */
+    fun createB2rFeedRepository(
+        p2pReplicationService: P2pReplicationService = NoOpP2pReplicationService(),
+    ): B2rFeedRepository {
+        return B2rFeedRepository(
+            database = resolveCachingDatabase(),
+            dispatcherProvider = dispatcherProvider,
+            p2pReplicationService = p2pReplicationService,
         )
     }
 
