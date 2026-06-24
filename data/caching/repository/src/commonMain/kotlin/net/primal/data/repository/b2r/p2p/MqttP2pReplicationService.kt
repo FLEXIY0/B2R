@@ -64,6 +64,25 @@ class MqttP2pReplicationService(
         }
     }
 
+    override suspend fun publishLocalSnapshot(authorPubkey: String) {
+        withContext(dispatcherProvider.io()) {
+            val entries = database.b2rFeed().getAuthorLog(authorPubkey)
+            if (entries.isEmpty()) return@withContext
+
+            val snapshot = AuthorSnapshot(
+                authorPubkey = authorPubkey,
+                latestSequenceId = entries.maxOf { it.sequenceId },
+                payload = P2pSnapshotCodec.encode(entries),
+            )
+            try {
+                discoveryBroker.publishSnapshot(snapshot)
+                Napier.d { "b2r P2P: published snapshot for $authorPubkey (seq ${snapshot.latestSequenceId})" }
+            } catch (error: Exception) {
+                Napier.w(error) { "b2r P2P: publishSnapshot failed for $authorPubkey" }
+            }
+        }
+    }
+
     private companion object {
         const val NO_ENTRIES = -1L
     }

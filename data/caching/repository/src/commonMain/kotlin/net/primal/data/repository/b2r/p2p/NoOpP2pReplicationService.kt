@@ -17,4 +17,8 @@ class NoOpP2pReplicationService : P2pReplicationService {
                 "transport not wired yet, serving local cache only."
         }
     }
+
+    override suspend fun publishLocalSnapshot(authorPubkey: String) {
+        Napier.d { "b2r P2P: publishLocalSnapshot stub for $authorPubkey; transport not wired yet." }
+    }
 }

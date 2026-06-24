@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.Clock
 import net.primal.core.utils.coroutines.DispatcherProvider
 import net.primal.data.local.dao.b2r.B2rFeedEntry
 import net.primal.data.local.db.PrimalDatabase
@@ -41,6 +42,35 @@ class B2rFeedRepository(
             .observeAuthorFeed(authorPubkey = authorPubkey)
             .map { entries -> entries.map { it.toB2rPost() } }
             .flowOn(dispatcherProvider.io())
+
+    /**
+     * Append a new post to the local log and advertise it to peers.
+     *
+     * Assigns the next per-author [sequenceId] (append-only), writes it to the
+     * Room log, then publishes the author's snapshot to the discovery broker so
+     * peers can replicate it. The post is signed by the account secp256k1 key in
+     * a later pass (the [B2rFeedEntry.signature] hook is left null for now).
+     */
+    suspend fun createPost(authorPubkey: String, content: String): B2rPost =
+        withContext(dispatcherProvider.io()) {
+            val dao = database.b2rFeed()
+            val nextSequenceId = (dao.latestSequenceId(authorPubkey = authorPubkey) ?: NO_ENTRIES_WATERMARK) + 1
+            val now = Clock.System.now().toEpochMilliseconds()
+            val entry = B2rFeedEntry(
+                // Deterministic per log position; production should hash the signed payload.
+                eventId = "$authorPubkey:$nextSequenceId",
+                authorPubkey = authorPubkey,
+                sequenceId = nextSequenceId,
+                content = content,
+                createdAt = now,
+                modifiedAt = now,
+                deleted = false,
+                signature = null,
+            )
+            dao.upsert(entry)
+            p2pReplicationService.publishLocalSnapshot(authorPubkey = authorPubkey)
+            entry.toB2rPost()
+        }
 
     /**
      * Ask the P2P layer to reconcile the given authors against peers. Computes the

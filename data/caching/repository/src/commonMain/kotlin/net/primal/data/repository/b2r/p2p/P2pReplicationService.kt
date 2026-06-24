@@ -26,4 +26,11 @@ interface P2pReplicationService {
      * brokers for anything newer and replicates it into the local cache.
      */
     suspend fun requestUpdates(authorWatermarks: Map<String, Long>)
+
+    /**
+     * Advertise our local log for an author to peers by publishing a retained
+     * snapshot to the discovery broker. Called after a local post is appended so
+     * other peers can pick it up when they next reconcile.
+     */
+    suspend fun publishLocalSnapshot(authorPubkey: String)
 }

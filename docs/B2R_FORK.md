@@ -94,8 +94,12 @@
         Room-entity не течёт в `:app`), `B2rFeedRepository.observeFeed()` →
         `Flow<List<B2rPost>>`, `B2rFeedViewModel` (Hilt) рендерит локальный лог +
         `syncWithPeers()` дёргает P2P.
+  - [x] **Цикл записи замкнут**: `B2rFeedRepository.createPost()` назначает
+        следующий `sequenceId` (append-only), пишет в лог и публикует snapshot
+        брокеру (`publishLocalSnapshot`); `B2rFeedViewModel.publishPost()` сверху.
+        Подпись secp256k1 — хук `signature=null` (следующий проход).
   - [ ] *(остаётся)* Compose-экран, привязанный к `B2rFeedViewModel.state`;
-        опционально — переключение основного Primal-feed на эти данные.
+        подпись постов ключом аккаунта; опц. переключение основного Primal-feed.
 - [~] **2.2 Ключи профиля** — *в работе*
   - [x] `B2rKeyFormatter` (`:core:utils`): display-only `npub…`↔`b2r_pub…`
         (без смены bech32-HRP — `_` невалиден в HRP и сломал бы декод/подписи).

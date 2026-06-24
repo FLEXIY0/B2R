@@ -48,9 +48,18 @@ class B2rFeedViewModel @Inject constructor(
             setState { copy(syncing = false) }
         }
 
+    /** Append a post to the local log under the given author key and advertise it to peers. */
+    fun publishPost(authorPubkey: String, content: String) =
+        viewModelScope.launch {
+            setState { copy(publishing = true) }
+            runCatching { b2rFeedRepository.createPost(authorPubkey = authorPubkey, content = content) }
+            setState { copy(publishing = false) }
+        }
+
     data class UiState(
         val posts: List<B2rPost> = emptyList(),
         val loading: Boolean = true,
         val syncing: Boolean = false,
+        val publishing: Boolean = false,
     )
 }
