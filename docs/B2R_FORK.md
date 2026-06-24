@@ -82,8 +82,13 @@
         Nostr-event entity (events/notes/reposts и пр.).
 
 ### Шаг 2 — Замена «сердца»
-- [ ] **2.1 Репозитории** (`:data:caching:repository`) — `fetchFeed()` читает из Room
-      + пингует `P2pReplicationService` (брокеры обнаружения → докачка по WebRTC).
+- [~] **2.1 Репозитории** (`:data:caching:repository`) — *в работе*
+  - [x] `B2rFeedRepository`: `observeFeed()` читает **строго из локального лога** Room
+        (`B2rFeedEntryDao`), `syncSubscriptions()` считает watermark (max `sequenceId`
+        на автора) и пингует `P2pReplicationService`. UI «думает», что это облако.
+  - [ ] *(остаётся)* Переключить Primal `FeedRepositoryImpl`/UI на делегирование
+        в `B2rFeedRepository` (сейчас это параллельная чистая реализация, чтобы не
+        дестабилизировать сложный paging-репозиторий Primal вслепую).
 - [~] **2.2 Ключи профиля** — *в работе*
   - [x] `B2rKeyFormatter` (`:core:utils`): display-only `npub…`↔`b2r_pub…`
         (без смены bech32-HRP — `_` невалиден в HRP и сломал бы декод/подписи).
@@ -91,5 +96,8 @@
   - [ ] *(остаётся)* Применить формат в остальных точках показа ключа;
         генерация secp256k1 «в Android Keystore» — ограничена (Keystore не
         поддерживает secp256k1 аппаратно), ключ остаётся в защищённом хранилище Primal.
-- [ ] **2.3 Модуль `:core:p2p`** — `DiscoveryBroker` (MQTT), `DirectReplicator` (WebRTC),
-      merge-слой (LWW). Сначала интерфейсы + заглушки.
+- [~] **2.3 P2P-абстракция** — *в работе*
+  - [x] `P2pReplicationService` (интерфейс) + `NoOpP2pReplicationService` (заглушка)
+        в `:data:caching:repository`. Шов готов, репозиторий компилируется поверх.
+  - [ ] *(остаётся)* Реальный транспорт: `DiscoveryBroker` (MQTT/retained mailbox),
+        `DirectReplicator` (WebRTC), merge-слой (LWW). Возможно вынести в `:core:p2p`.
