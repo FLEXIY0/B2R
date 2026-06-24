@@ -84,6 +84,12 @@
 ### Шаг 2 — Замена «сердца»
 - [ ] **2.1 Репозитории** (`:data:caching:repository`) — `fetchFeed()` читает из Room
       + пингует `P2pReplicationService` (брокеры обнаружения → докачка по WebRTC).
-- [ ] **2.2 Ключи профиля** (`:data:account:*`) — secp256k1 из Keystore, префикс `b2r_pub`.
+- [~] **2.2 Ключи профиля** — *в работе*
+  - [x] `B2rKeyFormatter` (`:core:utils`): display-only `npub…`↔`b2r_pub…`
+        (без смены bech32-HRP — `_` невалиден в HRP и сломал бы декод/подписи).
+  - [x] Экран настроек аккаунта показывает/копирует ключ как `b2r_pub…`.
+  - [ ] *(остаётся)* Применить формат в остальных точках показа ключа;
+        генерация secp256k1 «в Android Keystore» — ограничена (Keystore не
+        поддерживает secp256k1 аппаратно), ключ остаётся в защищённом хранилище Primal.
 - [ ] **2.3 Модуль `:core:p2p`** — `DiscoveryBroker` (MQTT), `DirectReplicator` (WebRTC),
       merge-слой (LWW). Сначала интерфейсы + заглушки.

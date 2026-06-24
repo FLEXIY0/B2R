@@ -12,6 +12,7 @@ import net.primal.android.premium.legend.domain.asLegendaryCustomization
 import net.primal.android.settings.account.AccountSettingsContract.UiState
 import net.primal.android.user.accounts.active.ActiveAccountStore
 import net.primal.android.user.credentials.CredentialsStore
+import net.primal.core.utils.npubToB2rPub
 import net.primal.domain.nostr.cryptography.utils.hexToNpubHrp
 
 @HiltViewModel
@@ -36,7 +37,8 @@ class AccountSettingsViewModel @Inject constructor(
                     copy(
                         avatarCdnImage = it.avatarCdnImage,
                         nsec = credential.nsec,
-                        npub = credential.npub,
+                        // b2r fork (Sprint 2.2): show the public key as b2r_pub… instead of npub…
+                        npub = credential.npub.npubToB2rPub(),
                         legendaryCustomization = it.primalLegendProfile?.asLegendaryCustomization(),
                     )
                 }
