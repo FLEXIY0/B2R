@@ -9,6 +9,7 @@ import net.primal.android.networking.di.PrimalCacheApiClient
 import net.primal.android.nostr.notary.NostrNotary
 import net.primal.core.caching.MediaCacher
 import net.primal.core.networking.primal.PrimalApiClient
+import net.primal.data.repository.b2r.B2rFeedRepository
 import net.primal.data.repository.factory.PrimalRepositoryFactory
 import net.primal.domain.bookmarks.PublicBookmarksRepository
 import net.primal.domain.events.EventInteractionRepository
@@ -105,6 +106,14 @@ object CachingRepositoriesModule {
             cachingPrimalApiClient = primalApiClient,
             mediaCacher = mediaCacher,
         )
+
+    // b2r fork (Sprint 2.1): the serverless feed repository, injectable into any
+    // ViewModel. Reads the local Room log and reconciles over the P2P seam
+    // (NoOpP2pReplicationService until the transport lands). No PrimalApiClient.
+    @Provides
+    @Singleton
+    fun provideB2rFeedRepository(): B2rFeedRepository =
+        PrimalRepositoryFactory.createB2rFeedRepository()
 
     @Provides
     fun provideFeedsRepository(

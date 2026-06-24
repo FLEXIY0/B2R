@@ -88,8 +88,10 @@
         на автора) и пингует `P2pReplicationService`. UI «думает», что это облако.
   - [x] Подключён в `CommonRepositoryFactory.createB2rFeedRepository()` (default
         `NoOpP2pReplicationService`) — репозиторий теперь инжектируемый.
-  - [ ] *(остаётся)* Провайдер в Hilt-DI `:app` + переключение существующего
-        UI/`FeedRepositoryImpl` на делегирование в `B2rFeedRepository`.
+  - [x] Hilt-провайдер `provideB2rFeedRepository()` (`CachingRepositoriesModule`,
+        `@Singleton`) — `B2rFeedRepository` инжектируется в любой ViewModel.
+  - [ ] *(остаётся)* Переключить существующий UI/`FeedRepositoryImpl` на
+        делегирование в `B2rFeedRepository`.
 - [~] **2.2 Ключи профиля** — *в работе*
   - [x] `B2rKeyFormatter` (`:core:utils`): display-only `npub…`↔`b2r_pub…`
         (без смены bech32-HRP — `_` невалиден в HRP и сломал бы декод/подписи).
