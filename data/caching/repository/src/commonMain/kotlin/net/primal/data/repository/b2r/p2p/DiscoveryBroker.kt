@@ -1,42 +1,24 @@
 package net.primal.data.repository.b2r.p2p
 
 /**
- * b2r fork (Sprint 2.3 / point 1): a snapshot of one author's log as advertised
- * on a discovery broker's retained "mailbox".
+ * b2r fork (point 1, global feed): the "discovery broker" leg of replication.
  *
- * Mirrors the owner's `todo` model: a peer publishes an (optionally encrypted)
- * snapshot to a public broker as a retained message; other peers pick it up
- * whenever they come online, even if the author is offline.
+ * b2r is one global shared space: everyone who installs the app reads and writes
+ * the same feed. The broker exposes a single global mailbox — concretely a
+ * retained message on a public MQTT topic — that holds a snapshot of the feed.
+ * Any peer publishes the merged snapshot it knows; any peer can fetch the latest
+ * one, even while others are offline.
  *
- * @param authorPubkey the b2r author public key the snapshot belongs to.
- * @param latestSequenceId the highest log index contained in [payload].
- * @param payload serialized [net.primal.data.local.dao.b2r.B2rFeedEntry] list
- * (JSON), as produced/consumed by [P2pSnapshotCodec].
- */
-data class AuthorSnapshot(
-    val authorPubkey: String,
-    val latestSequenceId: Long,
-    val payload: String,
-)
-
-/**
- * b2r fork (point 1): the "discovery broker" leg of replication.
- *
- * Concretely backed by public MQTT brokers over WebSocket (retained messages as
- * a mailbox), matching `todo`'s transport. Kept as an interface so the data
- * layer stays platform-agnostic — the Android implementation lives in the app
- * module and is injected in.
+ * Kept as an interface so the data layer stays platform-agnostic; the Android
+ * MQTT-over-WebSocket implementation lives in the app module and is injected in.
  */
 interface DiscoveryBroker {
 
-    /** Publish our snapshot for an author as a retained message on the broker. */
-    suspend fun publishSnapshot(snapshot: AuthorSnapshot)
+    /** Publish a snapshot of the global feed as the retained mailbox message. */
+    suspend fun publishGlobalSnapshot(payload: String)
 
-    /**
-     * Fetch the latest retained snapshots advertised for the given authors.
-     * Implementations should return quickly with whatever is currently available.
-     */
-    suspend fun fetchSnapshots(authorPubkeys: List<String>): List<AuthorSnapshot>
+    /** Fetch the latest retained global-feed snapshot, or null if none is available yet. */
+    suspend fun fetchGlobalSnapshot(): String?
 
     /** Release broker connections. */
     fun close()

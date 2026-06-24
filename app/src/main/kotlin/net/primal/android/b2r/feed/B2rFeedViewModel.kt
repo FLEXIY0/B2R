@@ -12,13 +12,12 @@ import net.primal.data.repository.b2r.B2rFeedRepository
 import net.primal.data.repository.b2r.B2rPost
 
 /**
- * b2r fork (point 2): UI-layer delegation to the b2r data path.
+ * b2r fork: drives the single global shared feed.
  *
- * Where a Primal feed ViewModel pulls pages from the cache server, this one
- * binds to [B2rFeedRepository]: it renders the local Room log via [observeFeed]
- * and asks the P2P layer to reconcile subscribed authors via [syncWithPeers].
- * The view thinks it is showing a cloud feed; it is actually showing local data
- * replicated phone-to-phone. A Compose screen can bind to [state] directly.
+ * Binds the UI to [B2rFeedRepository]: it renders the local Room log via
+ * [observeFeed], pulls the latest global snapshot from peers on open and on
+ * [refresh], and appends posts via [publishPost]. Everyone who installs the app
+ * shares this one feed.
  */
 @HiltViewModel
 class B2rFeedViewModel @Inject constructor(
@@ -31,6 +30,7 @@ class B2rFeedViewModel @Inject constructor(
 
     init {
         observeLocalFeed()
+        refresh()
     }
 
     private fun observeLocalFeed() =
@@ -40,15 +40,15 @@ class B2rFeedViewModel @Inject constructor(
             }
         }
 
-    /** Ask the P2P layer to reconcile the given subscribed authors against peers. */
-    fun syncWithPeers(authorPubkeys: List<String>) =
+    /** Pull the latest global feed from peers. */
+    fun refresh() =
         viewModelScope.launch {
             setState { copy(syncing = true) }
-            runCatching { b2rFeedRepository.syncSubscriptions(authorPubkeys) }
+            runCatching { b2rFeedRepository.refresh() }
             setState { copy(syncing = false) }
         }
 
-    /** Append a post to the local log under the given author key and advertise it to peers. */
+    /** Append a post under the given author key to the global feed. */
     fun publishPost(authorPubkey: String, content: String) =
         viewModelScope.launch {
             setState { copy(publishing = true) }

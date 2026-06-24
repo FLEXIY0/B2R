@@ -46,7 +46,7 @@ internal fun B2rPostDto.toEntry() =
         signature = signature,
     )
 
-/** Encodes/decodes the JSON payload carried inside an [AuthorSnapshot]. */
+/** Encodes/decodes the JSON payload of a global feed snapshot exchanged via the broker. */
 object P2pSnapshotCodec {
 
     private val serializer = ListSerializer(B2rPostDto.serializer())

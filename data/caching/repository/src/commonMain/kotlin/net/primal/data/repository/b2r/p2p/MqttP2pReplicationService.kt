@@ -6,18 +6,15 @@ import net.primal.core.utils.coroutines.DispatcherProvider
 import net.primal.data.local.db.PrimalDatabase
 
 /**
- * b2r fork (point 1): real replication service backed by a [DiscoveryBroker]
+ * b2r fork (global feed): replication service backed by a [DiscoveryBroker]
  * (public MQTT mailbox).
  *
- * For each subscribed author it asks the broker for the latest retained snapshot;
- * if the snapshot advertises a higher `sequenceId` than what we hold locally, it
- * decodes the posts and merges the new ones into the Room log using
- * union + last-write-wins (an incoming copy only overwrites a local one when its
- * `modifiedAt` is newer, and tombstones are respected by [B2rFeedEntry.deleted]).
- *
- * Direct phone-to-phone transfer over WebRTC ([DirectReplicator]) is layered on
- * top later; the MQTT mailbox alone already gives asynchronous, offline-tolerant
- * replication, matching the owner's `todo` design.
+ * b2r is one shared space, so there is a single global snapshot rather than a
+ * per-author one. [pullFeed] fetches that snapshot and merges any newer posts
+ * into the local Room log using union + last-write-wins (an incoming copy only
+ * overwrites a local one when its `modifiedAt` is newer; tombstones via
+ * `deleted` are respected). [publishFeed] sends our full merged view back so
+ * peers converge on the same feed.
  */
 class MqttP2pReplicationService(
     private val database: PrimalDatabase,
@@ -25,65 +22,45 @@ class MqttP2pReplicationService(
     private val dispatcherProvider: DispatcherProvider,
 ) : P2pReplicationService {
 
-    override suspend fun requestUpdates(authorWatermarks: Map<String, Long>) {
-        if (authorWatermarks.isEmpty()) return
-
+    override suspend fun pullFeed() {
         withContext(dispatcherProvider.io()) {
-            val snapshots = try {
-                discoveryBroker.fetchSnapshots(authorWatermarks.keys.toList())
+            val payload = try {
+                discoveryBroker.fetchGlobalSnapshot()
             } catch (error: Exception) {
-                Napier.w(error) { "b2r P2P: discovery broker fetch failed" }
-                emptyList()
+                Napier.w(error) { "b2r P2P: global snapshot fetch failed" }
+                null
+            } ?: return@withContext
+
+            val incoming = try {
+                P2pSnapshotCodec.decode(payload)
+            } catch (error: Exception) {
+                Napier.w(error) { "b2r P2P: invalid global snapshot payload" }
+                return@withContext
             }
 
             val dao = database.b2rFeed()
-            snapshots.forEach { snapshot ->
-                val knownSequenceId = authorWatermarks[snapshot.authorPubkey] ?: NO_ENTRIES
-                if (snapshot.latestSequenceId <= knownSequenceId) return@forEach
-
-                val incoming = try {
-                    P2pSnapshotCodec.decode(snapshot.payload)
-                } catch (error: Exception) {
-                    Napier.w(error) { "b2r P2P: invalid snapshot for ${snapshot.authorPubkey}" }
-                    return@forEach
-                }
-
-                val toWrite = incoming
-                    .filter { it.sequenceId > knownSequenceId }
-                    .filter { entry ->
-                        // LWW guard: keep whichever copy is newer by modifiedAt.
-                        val existing = dao.findById(entry.eventId)
-                        existing == null || entry.modifiedAt >= existing.modifiedAt
-                    }
-
-                if (toWrite.isNotEmpty()) {
-                    dao.upsertAll(toWrite)
-                    Napier.d { "b2r P2P: merged ${toWrite.size} post(s) for ${snapshot.authorPubkey}" }
-                }
+            val toWrite = incoming.filter { entry ->
+                // LWW guard: keep whichever copy is newer by modifiedAt.
+                val existing = dao.findById(entry.eventId)
+                existing == null || entry.modifiedAt >= existing.modifiedAt
+            }
+            if (toWrite.isNotEmpty()) {
+                dao.upsertAll(toWrite)
+                Napier.d { "b2r P2P: merged ${toWrite.size} post(s) from the global feed" }
             }
         }
     }
 
-    override suspend fun publishLocalSnapshot(authorPubkey: String) {
+    override suspend fun publishFeed() {
         withContext(dispatcherProvider.io()) {
-            val entries = database.b2rFeed().getAuthorLog(authorPubkey)
-            if (entries.isEmpty()) return@withContext
-
-            val snapshot = AuthorSnapshot(
-                authorPubkey = authorPubkey,
-                latestSequenceId = entries.maxOf { it.sequenceId },
-                payload = P2pSnapshotCodec.encode(entries),
-            )
+            val allPosts = database.b2rFeed().getAllPosts()
+            if (allPosts.isEmpty()) return@withContext
             try {
-                discoveryBroker.publishSnapshot(snapshot)
-                Napier.d { "b2r P2P: published snapshot for $authorPubkey (seq ${snapshot.latestSequenceId})" }
+                discoveryBroker.publishGlobalSnapshot(P2pSnapshotCodec.encode(allPosts))
+                Napier.d { "b2r P2P: published global feed snapshot (${allPosts.size} post(s))" }
             } catch (error: Exception) {
-                Napier.w(error) { "b2r P2P: publishSnapshot failed for $authorPubkey" }
+                Napier.w(error) { "b2r P2P: publishGlobalSnapshot failed" }
             }
         }
-    }
-
-    private companion object {
-        const val NO_ENTRIES = -1L
     }
 }

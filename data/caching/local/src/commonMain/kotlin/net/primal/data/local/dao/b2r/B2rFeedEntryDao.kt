@@ -40,9 +40,9 @@ interface B2rFeedEntryDao {
     @Query("SELECT * FROM B2rFeedEntry WHERE eventId = :eventId")
     suspend fun findById(eventId: String): B2rFeedEntry?
 
-    /** The full ordered log for an author — used to build a snapshot for peers. */
-    @Query("SELECT * FROM B2rFeedEntry WHERE authorPubkey = :authorPubkey ORDER BY sequenceId ASC")
-    suspend fun getAuthorLog(authorPubkey: String): List<B2rFeedEntry>
+    /** Every post we hold — used to publish the global feed snapshot to peers. */
+    @Query("SELECT * FROM B2rFeedEntry ORDER BY createdAt ASC")
+    suspend fun getAllPosts(): List<B2rFeedEntry>
 
     /** Tombstone a post (LWW): records the deletion time so it cannot be resurrected. */
     @Query("UPDATE B2rFeedEntry SET deleted = 1, modifiedAt = :modifiedAt WHERE eventId = :eventId")

@@ -3,22 +3,17 @@ package net.primal.data.repository.b2r.p2p
 import io.github.aakira.napier.Napier
 
 /**
- * b2r fork (Sprint 2.3): placeholder replication service.
- *
- * Satisfies [P2pReplicationService] so the repository layer (2.1) compiles and
- * runs end-to-end while reading from the local log. It performs no networking;
- * the MQTT discovery + WebRTC transfer implementation replaces it later.
+ * b2r fork: placeholder replication service used when no transport is wired.
+ * Satisfies [P2pReplicationService] so the repository layer runs against the
+ * local log only; it performs no networking.
  */
 class NoOpP2pReplicationService : P2pReplicationService {
 
-    override suspend fun requestUpdates(authorWatermarks: Map<String, Long>) {
-        Napier.d {
-            "b2r P2P: requestUpdates stub for ${authorWatermarks.size} author(s); " +
-                "transport not wired yet, serving local cache only."
-        }
+    override suspend fun pullFeed() {
+        Napier.d { "b2r P2P: pullFeed stub; transport not wired, serving local cache only." }
     }
 
-    override suspend fun publishLocalSnapshot(authorPubkey: String) {
-        Napier.d { "b2r P2P: publishLocalSnapshot stub for $authorPubkey; transport not wired yet." }
+    override suspend fun publishFeed() {
+        Napier.d { "b2r P2P: publishFeed stub; transport not wired." }
     }
 }

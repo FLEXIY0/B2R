@@ -6,9 +6,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.Serializable
-import net.primal.core.utils.serialization.CommonJsonEncodeDefaults
-import net.primal.data.repository.b2r.p2p.AuthorSnapshot
 import net.primal.data.repository.b2r.p2p.DiscoveryBroker
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -17,23 +14,15 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 
-/** Wire envelope stored on the broker (carries the author watermark alongside the payload). */
-@Serializable
-internal data class MqttSnapshotEnvelope(
-    val authorPubkey: String,
-    val latestSequenceId: Long,
-    val payload: String,
-)
-
 /**
- * b2r fork (point 1, stage 2): a [DiscoveryBroker] backed by public MQTT brokers
- * over WebSocket, using retained messages as an offline-tolerant mailbox — the
- * same approach as the owner's `todo` app.
+ * b2r fork (global feed): a [DiscoveryBroker] backed by public MQTT brokers over
+ * WebSocket, using one retained message as the global mailbox — the same
+ * approach as the owner's `todo` app.
  *
- * Each author's latest snapshot lives at topic `b2r/feed/<authorPubkey>` as a
- * retained message, so a peer picks it up whenever it next connects, even if the
- * author is offline. The MQTT framing is hand-rolled (see [MqttWireFormat]) to
- * avoid adding a dependency.
+ * The whole network shares a single topic ([GLOBAL_TOPIC]); the retained message
+ * there holds a snapshot of the global feed, so any install picks it up whenever
+ * it connects, even if others are offline. The MQTT framing is hand-rolled (see
+ * [MqttWireFormat]) to avoid a dependency.
  *
  * NOTE: connection/replication logic compiles but is not yet validated against a
  * live broker on a device — treat as experimental.
@@ -43,53 +32,32 @@ class OkHttpMqttDiscoveryBroker(
     private val brokerUrls: List<String> = DEFAULT_BROKERS,
 ) : DiscoveryBroker {
 
-    override suspend fun publishSnapshot(snapshot: AuthorSnapshot) {
-        val envelope = MqttSnapshotEnvelope(
-            authorPubkey = snapshot.authorPubkey,
-            latestSequenceId = snapshot.latestSequenceId,
-            payload = snapshot.payload,
-        )
-        val json = CommonJsonEncodeDefaults.encodeToString(MqttSnapshotEnvelope.serializer(), envelope)
+    override suspend fun publishGlobalSnapshot(payload: String) {
         val session = openSession() ?: return
         try {
-            session.webSocket.send(
-                MqttWireFormat.publishRetained(topicFor(snapshot.authorPubkey), json.encodeToByteArray()),
-            )
+            session.webSocket.send(MqttWireFormat.publishRetained(GLOBAL_TOPIC, payload.encodeToByteArray()))
             delay(PUBLISH_FLUSH_MS)
         } finally {
             session.close()
         }
     }
 
-    override suspend fun fetchSnapshots(authorPubkeys: List<String>): List<AuthorSnapshot> {
-        if (authorPubkeys.isEmpty()) return emptyList()
-        val session = openSession() ?: return emptyList()
-        val collected = LinkedHashMap<String, AuthorSnapshot>()
-        try {
-            var packetId = 1
-            authorPubkeys.forEach { pubkey ->
-                session.webSocket.send(MqttWireFormat.subscribe(packetId++, topicFor(pubkey)))
-            }
+    override suspend fun fetchGlobalSnapshot(): String? {
+        val session = openSession() ?: return null
+        return try {
+            session.webSocket.send(MqttWireFormat.subscribe(packetId = 1, topicFilter = GLOBAL_TOPIC))
             withTimeoutOrNull(SUBSCRIBE_WINDOW_MS) {
                 for (frame in session.incoming) {
                     val publish = MqttWireFormat.parsePublish(frame) ?: continue
-                    val envelope = runCatching {
-                        CommonJsonEncodeDefaults.decodeFromString(
-                            MqttSnapshotEnvelope.serializer(),
-                            publish.payload.decodeToString(),
-                        )
-                    }.getOrNull() ?: continue
-                    collected[envelope.authorPubkey] = AuthorSnapshot(
-                        authorPubkey = envelope.authorPubkey,
-                        latestSequenceId = envelope.latestSequenceId,
-                        payload = envelope.payload,
-                    )
+                    if (publish.topic == GLOBAL_TOPIC) {
+                        return@withTimeoutOrNull publish.payload.decodeToString()
+                    }
                 }
+                null
             }
         } finally {
             session.close()
         }
-        return collected.values.toList()
     }
 
     override fun close() = Unit
@@ -162,14 +130,15 @@ class OkHttpMqttDiscoveryBroker(
     }
 
     companion object {
+        /** Single global topic every install shares. */
+        private const val GLOBAL_TOPIC = "b2r/global/v1"
+
         private const val CONNACK_TYPE = 0x20
         private const val TYPE_MASK = 0xF0
         private const val HEX_RADIX = 16
         private const val CONNECT_TIMEOUT_MS = 5_000L
         private const val SUBSCRIBE_WINDOW_MS = 2_500L
         private const val PUBLISH_FLUSH_MS = 400L
-
-        private fun topicFor(authorPubkey: String) = "b2r/feed/$authorPubkey"
 
         /** Public, anonymous MQTT-over-WebSocket brokers (same set as the `todo` app). */
         val DEFAULT_BROKERS = listOf(
