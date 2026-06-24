@@ -1,24 +1,26 @@
 package net.primal.data.repository.b2r.p2p
 
 /**
- * b2r fork (point 1, global feed): the "discovery broker" leg of replication.
+ * b2r fork: the "discovery broker" leg of replication — a topic-addressed mailbox
+ * over a public MQTT broker (retained messages).
  *
- * b2r is one global shared space: everyone who installs the app reads and writes
- * the same feed. The broker exposes a single global mailbox — concretely a
- * retained message on a public MQTT topic — that holds a snapshot of the feed.
- * Any peer publishes the merged snapshot it knows; any peer can fetch the latest
- * one, even while others are offline.
+ * Everything in b2r flows through one shared broker; what makes a stream public
+ * or private is the topic and whether its payload is encrypted:
+ *  - the global feed uses a well-known public topic with plaintext snapshots;
+ *  - a 1:1 chat uses an opaque per-conversation topic with end-to-end encrypted
+ *    payloads, so other peers on the same broker only ever see ciphertext they
+ *    cannot read ("limited by visibility").
  *
  * Kept as an interface so the data layer stays platform-agnostic; the Android
  * MQTT-over-WebSocket implementation lives in the app module and is injected in.
  */
 interface DiscoveryBroker {
 
-    /** Publish a snapshot of the global feed as the retained mailbox message. */
-    suspend fun publishGlobalSnapshot(payload: String)
+    /** Publish [payload] as the retained mailbox message on [topic]. */
+    suspend fun publishSnapshot(topic: String, payload: String)
 
-    /** Fetch the latest retained global-feed snapshot, or null if none is available yet. */
-    suspend fun fetchGlobalSnapshot(): String?
+    /** Fetch the latest retained message on [topic], or null if none is available yet. */
+    suspend fun fetchSnapshot(topic: String): String?
 
     /** Release broker connections. */
     fun close()

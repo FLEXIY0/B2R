@@ -25,7 +25,7 @@ class MqttP2pReplicationService(
     override suspend fun pullFeed() {
         withContext(dispatcherProvider.io()) {
             val payload = try {
-                discoveryBroker.fetchGlobalSnapshot()
+                discoveryBroker.fetchSnapshot(GLOBAL_FEED_TOPIC)
             } catch (error: Exception) {
                 Napier.w(error) { "b2r P2P: global snapshot fetch failed" }
                 null
@@ -56,11 +56,16 @@ class MqttP2pReplicationService(
             val allPosts = database.b2rFeed().getAllPosts()
             if (allPosts.isEmpty()) return@withContext
             try {
-                discoveryBroker.publishGlobalSnapshot(P2pSnapshotCodec.encode(allPosts))
+                discoveryBroker.publishSnapshot(GLOBAL_FEED_TOPIC, P2pSnapshotCodec.encode(allPosts))
                 Napier.d { "b2r P2P: published global feed snapshot (${allPosts.size} post(s))" }
             } catch (error: Exception) {
-                Napier.w(error) { "b2r P2P: publishGlobalSnapshot failed" }
+                Napier.w(error) { "b2r P2P: publish global feed failed" }
             }
         }
+    }
+
+    private companion object {
+        /** Public, well-known topic for the global feed (plaintext snapshots). */
+        const val GLOBAL_FEED_TOPIC = "b2r/global/v1"
     }
 }

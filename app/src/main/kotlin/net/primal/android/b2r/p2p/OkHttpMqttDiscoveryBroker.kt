@@ -32,24 +32,24 @@ class OkHttpMqttDiscoveryBroker(
     private val brokerUrls: List<String> = DEFAULT_BROKERS,
 ) : DiscoveryBroker {
 
-    override suspend fun publishGlobalSnapshot(payload: String) {
+    override suspend fun publishSnapshot(topic: String, payload: String) {
         val session = openSession() ?: return
         try {
-            session.webSocket.send(MqttWireFormat.publishRetained(GLOBAL_TOPIC, payload.encodeToByteArray()))
+            session.webSocket.send(MqttWireFormat.publishRetained(topic, payload.encodeToByteArray()))
             delay(PUBLISH_FLUSH_MS)
         } finally {
             session.close()
         }
     }
 
-    override suspend fun fetchGlobalSnapshot(): String? {
+    override suspend fun fetchSnapshot(topic: String): String? {
         val session = openSession() ?: return null
         return try {
-            session.webSocket.send(MqttWireFormat.subscribe(packetId = 1, topicFilter = GLOBAL_TOPIC))
+            session.webSocket.send(MqttWireFormat.subscribe(packetId = 1, topicFilter = topic))
             withTimeoutOrNull(SUBSCRIBE_WINDOW_MS) {
                 for (frame in session.incoming) {
                     val publish = MqttWireFormat.parsePublish(frame) ?: continue
-                    if (publish.topic == GLOBAL_TOPIC) {
+                    if (publish.topic == topic) {
                         return@withTimeoutOrNull publish.payload.decodeToString()
                     }
                 }
@@ -130,9 +130,6 @@ class OkHttpMqttDiscoveryBroker(
     }
 
     companion object {
-        /** Single global topic every install shares. */
-        private const val GLOBAL_TOPIC = "b2r/global/v1"
-
         private const val CONNACK_TYPE = 0x20
         private const val TYPE_MASK = 0xF0
         private const val HEX_RADIX = 16
