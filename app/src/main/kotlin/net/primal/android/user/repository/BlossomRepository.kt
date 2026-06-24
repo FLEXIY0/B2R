@@ -19,7 +19,10 @@ class BlossomRepository @Inject constructor(
 ) {
 
     private companion object {
-        private val DEFAULT_BLOSSOM_LIST = listOf("https://blossom.primal.net")
+        // b2r fork (Sprint 1.2): default media host moved off Primal's Blossom
+        // CDN to a non-resolving sentinel. Media handling is reworked for P2P
+        // delivery in a later step; until then uploads do not reach any Primal server.
+        private val DEFAULT_BLOSSOM_LIST = listOf("https://disabled.b2r.invalid")
     }
 
     suspend fun ensureBlossomServerList(userId: String): List<String> {

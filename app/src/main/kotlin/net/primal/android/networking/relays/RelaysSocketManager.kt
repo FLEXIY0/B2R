@@ -71,8 +71,6 @@ class RelaysSocketManager @Inject constructor(
             }
         }
 
-    private suspend fun isCachingProxyEnabled() = activeAccountStore.activeUserAccount().cachingProxyEnabled
-
     private fun observeRelays(userId: String): Job =
         scope.launch {
             try {
@@ -106,39 +104,38 @@ class RelaysSocketManager @Inject constructor(
             nwcRelaysPool.closePool()
         }
 
+    // b2r fork (Sprint 1.3): event publishing to Nostr relays is removed.
+    // The original Nostr design pushes signed events to "dumb" relays that store
+    // and rebroadcast everything; b2r does not use that delivery mechanism — posts
+    // are kept in the local append/LWW log and propagated directly peer-to-peer.
+    // These methods keep their signatures (and @Throws contract) so every caller
+    // still compiles, but they open no relay socket and send nothing. The actual
+    // P2P hand-off is wired in Step 2 via the replication service.
+    @Suppress("UNUSED_PARAMETER")
     @Throws(NostrPublishException::class)
     suspend fun publishEvent(nostrEvent: NostrEvent) {
-        if (userRelaysPool.hasRelays()) {
-            userRelaysPool.publishEvent(nostrEvent = nostrEvent, cachingProxyEnabled = isCachingProxyEnabled())
-        } else {
-            fallbackRelaysPool.publishEvent(nostrEvent = nostrEvent, cachingProxyEnabled = isCachingProxyEnabled())
-        }
+        Napier.d { "b2r: relay publish disabled; event ${nostrEvent.id} not sent to any relay." }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     @Throws(NostrPublishException::class)
     suspend fun publishEvent(nostrEvent: NostrEvent, relays: List<Relay>) {
-        val customPool = buildRelayPool()
-        customPool.changeRelays(relays = relays)
-        customPool.publishEvent(nostrEvent = nostrEvent, cachingProxyEnabled = isCachingProxyEnabled())
-        customPool.closePool()
+        Napier.d { "b2r: relay publish disabled; event ${nostrEvent.id} not sent to ${relays.size} relay(s)." }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     @Throws(NostrPublishException::class)
     suspend fun publishNwcEvent(nostrEvent: NostrEvent) {
-        if (!nwcRelaysPool.hasRelays()) {
-            throw NostrPublishException(cause = IllegalStateException("nwc relay not found"))
-        }
-
-        nwcRelaysPool.publishEvent(nostrEvent = nostrEvent, cachingProxyEnabled = isCachingProxyEnabled())
+        Napier.d { "b2r: relay publish disabled; NWC event ${nostrEvent.id} not sent to any relay." }
     }
 
+    // b2r fork (Sprint 1.3): no outbound relay connections are established.
     fun tryConnectingToAllUserRelays() {
-        userRelaysPool.relays.forEach {
-            scope.launch {
-                userRelaysPool.tryConnectingToRelay(it.url)
-            }
-        }
+        Napier.d { "b2r: relay connections disabled; skipping connect to user relays." }
     }
 
-    suspend fun tryConnectingToUserRelay(url: String) = userRelaysPool.tryConnectingToRelay(url)
+    @Suppress("UNUSED_PARAMETER")
+    suspend fun tryConnectingToUserRelay(url: String) {
+        Napier.d { "b2r: relay connections disabled; skipping connect to $url." }
+    }
 }

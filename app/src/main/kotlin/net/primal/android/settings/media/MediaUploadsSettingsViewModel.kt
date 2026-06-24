@@ -200,6 +200,7 @@ class MediaUploadsSettingsViewModel @Inject constructor(
         }
 
     companion object {
-        private const val DEFAULT_BLOSSOM_URL = "https://blossom.primal.net"
+        // b2r fork (Sprint 1.2): default Blossom CDN host repointed off Primal.
+        private const val DEFAULT_BLOSSOM_URL = "https://disabled.b2r.invalid"
     }
 }

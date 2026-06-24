@@ -50,18 +50,24 @@
 
 - [ ] **1.1 Изоляция UI** — `:app`, дизайн-система, `:core:utils` не трогаем;
       выписать точки, где `:app` напрямую зовёт сеть/Nostr (швы для Шага 2).
-- [~] **1.2 Вырезание Primal API (egress)** — *в работе*
+- [x] **1.2 Вырезание Primal API (egress)**
   - [x] `core/app-config`: дефолтные эндпоинты Primal → `wss://disabled.b2r.invalid`
         (`.invalid` не резолвится — гарантированно ноль egress).
   - [x] `core/app-config`: отключена динамическая подгрузка `.well-known` с `primal.net`.
   - [x] `app` `NetworkingModule`: базовый хост Retrofit → `disabled.b2r.invalid`.
-  - [ ] Media/CDN: `media.primal.net`, `blossom.primal.net` (onboarding suggestions, Blossom).
-  - [ ] UI-дефолты: `NetworkSettingsScreen` (`wss://cache.primal.net/v1`).
-  - [ ] Гард в сокет-клиенте: запрет коннекта к `*.primal.net`.
-- [ ] **1.3 Очистка Nostr SDK** — убрать публикацию в реле
-  (`app/networking/relays/*`: `RelayPool`, `RelaysSocketManager`, `broadcast/*`,
-  `FallbackRelays`), снять зависимость Quartz / `:core:nips` / `:domain:nostr`.
-  Логику ключей secp256k1 сохранить (нужна в 2.2).
+  - [x] Media/CDN: `BlossomRepository`, `MediaUploadsSettingsViewModel`,
+        `OnboardingApi` (suggestions) → `disabled.b2r.invalid`.
+  - [ ] *(остаётся)* Гард в сокет-клиенте: жёсткий запрет коннекта к `*.primal.net`
+        на уровне `NostrSocketClientImpl` (defense-in-depth; сейчас egress уже
+        перекрыт на уровне конфигов/DI).
+  - _Примечание: `NetworkSettingsScreen` `wss://cache.primal.net/v1` — это
+    превью-семпл (Compose @Preview), не реальный egress; не трогаем._
+- [~] **1.3 Очистка Nostr SDK** — *в работе*
+  - [x] Публикация в реле заглушена по шву: `RelaysSocketManager.publishEvent` /
+        `publishNwcEvent` / `tryConnecting*` — no-op, сокеты к реле не открываются.
+  - [ ] *(остаётся)* Снять зависимость Quartz / `:core:nips` / `:domain:nostr`
+        из data-слоя (крупный рефакторинг ~20 модулей; делать по шву).
+        Логику ключей secp256k1 сохранить (нужна в 2.2).
 - [ ] **1.4 Пересборка Room** (`:data:caching:local`) — удалить Nostr-Entity,
       ввести схему b2r (LWW: `mt`/tombstones; колонка `sequence_id` как лог. счётчик).
 
