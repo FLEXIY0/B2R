@@ -1,0 +1,101 @@
+package net.primal.android.notes.feed.note
+
+import net.primal.android.core.errors.UiError
+import net.primal.android.notes.feed.model.PollUi
+import net.primal.domain.nostr.ReportType
+import net.primal.domain.zaps.ZappingState
+
+interface NoteContract {
+
+    data class UiState(
+        val activeAccountUserId: String,
+        val zappingState: ZappingState = ZappingState(),
+        val shouldApproveBookmark: Boolean = false,
+        val relayHints: List<String> = emptyList(),
+        val currentExchangeRate: Double = 0.0,
+        val poll: PollUi? = null,
+        val error: UiError? = null,
+    )
+
+    sealed class SideEffect {
+        data object NoteDeleted : SideEffect()
+    }
+
+    sealed class UiEvent {
+        data class PostLikeAction(
+            val postId: String,
+            val postAuthorId: String,
+        ) : UiEvent()
+
+        data class DeleteRepostAction(
+            val postId: String,
+            val repostId: String?,
+            val repostAuthorId: String?,
+        ) : UiEvent()
+
+        data class RepostAction(
+            val postId: String,
+            val postAuthorId: String,
+            val postNostrEvent: String,
+        ) : UiEvent()
+
+        data class ZapAction(
+            val postId: String,
+            val postAuthorId: String,
+            val zapAmount: ULong? = null,
+            val zapDescription: String? = null,
+        ) : UiEvent()
+
+        data class MuteUserAction(
+            val userId: String,
+        ) : UiEvent()
+
+        data class MuteThreadAction(
+            val postId: String,
+        ) : UiEvent()
+
+        data class UnmuteThreadAction(
+            val postId: String,
+        ) : UiEvent()
+
+        data class ReportAbuse(
+            val reportType: ReportType,
+            val profileId: String,
+            val noteId: String,
+        ) : UiEvent()
+
+        data class BookmarkAction(
+            val noteId: String,
+            val forceUpdate: Boolean = false,
+        ) : UiEvent()
+
+        data class DismissBookmarkConfirmation(
+            val noteId: String,
+        ) : UiEvent()
+
+        data class RequestDeleteAction(
+            val noteId: String,
+            val userId: String,
+        ) : UiEvent()
+
+        data class UpdateAutoPlayVideoSoundPreference(
+            val soundOn: Boolean,
+        ) : UiEvent()
+
+        data class PollVoteAction(
+            val postId: String,
+            val optionId: String,
+            val poll: PollUi,
+        ) : UiEvent()
+
+        data class ZapPollVoteAction(
+            val postId: String,
+            val optionId: String,
+            val zapAmount: Long,
+            val zapComment: String?,
+            val poll: PollUi,
+        ) : UiEvent()
+
+        data object DismissError : UiEvent()
+    }
+}

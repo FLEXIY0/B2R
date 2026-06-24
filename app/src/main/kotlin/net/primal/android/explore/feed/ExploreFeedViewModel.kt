@@ -1,0 +1,193 @@
+package net.primal.android.explore.feed
+
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.aakira.napier.Napier
+import javax.inject.Inject
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
+import net.primal.android.explore.feed.ExploreFeedContract.UiEvent
+import net.primal.android.explore.feed.ExploreFeedContract.UiState
+import net.primal.android.explore.feed.ExploreFeedContract.UiState.ExploreFeedError
+import net.primal.android.navigation.advancedSearchFeedSpec
+import net.primal.android.navigation.editingFeedSpec
+import net.primal.android.navigation.exploreFeedDescription
+import net.primal.android.navigation.exploreFeedSpec
+import net.primal.android.navigation.exploreFeedTitle
+import net.primal.android.navigation.renderType
+import net.primal.android.user.accounts.active.ActiveAccountStore
+import net.primal.core.utils.coroutines.DispatcherProvider
+import net.primal.domain.common.exception.NetworkException
+import net.primal.domain.feeds.FEED_KIND_SEARCH
+import net.primal.domain.feeds.FeedsRepository
+import net.primal.domain.feeds.buildAdvancedSearchFeedSpec
+import net.primal.domain.feeds.resolveFeedSpecKind
+import net.primal.domain.nostr.cryptography.SignatureException
+import net.primal.domain.posts.FeedRepository
+
+@HiltViewModel
+class ExploreFeedViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
+    private val dispatcherProvider: DispatcherProvider,
+    private val feedRepository: FeedRepository,
+    private val feedsRepository: FeedsRepository,
+    private val activeAccountStore: ActiveAccountStore,
+) : ViewModel() {
+
+    private val feedSpec = savedStateHandle.exploreFeedSpec
+        ?: savedStateHandle.advancedSearchFeedSpec?.buildAdvancedSearchFeedSpec()
+        ?: error("no feed spec provided.")
+
+    private val editingFeedSpec = savedStateHandle.editingFeedSpec
+
+    private val feedTitle = savedStateHandle.exploreFeedTitle
+    private val feedDescription = savedStateHandle.exploreFeedDescription
+
+    private val renderType = ExploreFeedContract.RenderType.valueOf(savedStateHandle.renderType)
+
+    private val _state = MutableStateFlow(
+        UiState(
+            feedSpec = feedSpec,
+            feedSpecKind = feedSpec.resolveFeedSpecKind(),
+            renderType = renderType,
+            feedTitle = feedTitle,
+            feedDescription = feedDescription,
+            isEditMode = editingFeedSpec != null,
+        ),
+    )
+    val state = _state.asStateFlow()
+    private fun setState(reducer: UiState.() -> UiState) {
+        _state.getAndUpdate { it.reducer() }
+    }
+
+    private val events: MutableSharedFlow<UiEvent> = MutableSharedFlow()
+    fun setEvent(event: UiEvent) {
+        viewModelScope.launch { events.emit(event) }
+    }
+
+    private val _effects = Channel<ExploreFeedContract.SideEffect>()
+    val effects = _effects.receiveAsFlow()
+    private fun setEffect(effect: ExploreFeedContract.SideEffect) = viewModelScope.launch { _effects.send(effect) }
+
+    init {
+        observeContainsFeed()
+        observeEvents()
+        if (editingFeedSpec != null) {
+            fetchEditingFeedDetails()
+        }
+    }
+
+    private fun fetchEditingFeedDetails() =
+        viewModelScope.launch {
+            val userId = activeAccountStore.activeUserId()
+            val existingFeed = editingFeedSpec?.let {
+                feedsRepository.findFeedBySpec(userId = userId, feedSpec = it)
+            }
+            if (existingFeed != null) {
+                setState { copy(feedTitle = existingFeed.title, feedDescription = existingFeed.description) }
+            }
+        }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    override fun onCleared() {
+        GlobalScope.launch(dispatcherProvider.io()) {
+            feedRepository.removeFeedSpec(userId = activeAccountStore.activeUserId(), feedSpec = feedSpec)
+        }
+    }
+
+    private fun observeContainsFeed() =
+        viewModelScope.launch {
+            feedsRepository.observeContainsFeedSpec(
+                userId = activeAccountStore.activeUserId(),
+                feedSpec = feedSpec,
+            ).collect {
+                setState { copy(existsInUserFeeds = it) }
+            }
+        }
+
+    private fun observeEvents() =
+        viewModelScope.launch {
+            events.collect {
+                when (it) {
+                    is UiEvent.AddToUserFeeds -> addToMyFeeds(it)
+                    UiEvent.RemoveFromUserFeeds -> removeFromMyFeeds()
+                }
+            }
+        }
+
+    private suspend fun addToMyFeeds(event: UiEvent.AddToUserFeeds) {
+        setState { copy(saving = true) }
+        try {
+            val userId = activeAccountStore.activeUserId()
+            val feedSpecKind = feedSpec.resolveFeedSpecKind()
+            if (feedSpecKind != null) {
+                if (editingFeedSpec != null) {
+                    feedsRepository.replaceFeedLocally(
+                        userId = userId,
+                        oldFeedSpec = editingFeedSpec,
+                        newFeedSpec = feedSpec,
+                        title = event.title,
+                        description = event.description,
+                        feedSpecKind = feedSpecKind,
+                        feedKind = FEED_KIND_SEARCH,
+                    )
+                } else {
+                    feedsRepository.addFeedLocally(
+                        userId = userId,
+                        feedSpec = feedSpec,
+                        title = event.title,
+                        description = event.description,
+                        feedSpecKind = feedSpecKind,
+                        feedKind = FEED_KIND_SEARCH,
+                    )
+                }
+                feedsRepository.persistRemotelyAllLocalUserFeeds(userId = userId)
+                setState { copy(feedTitle = event.title, feedDescription = event.description) }
+                setEffect(ExploreFeedContract.SideEffect.FeedSaved)
+            }
+        } catch (error: SignatureException) {
+            Napier.w(throwable = error) { "Failed to add feed due to signature error." }
+            setErrorState(error = ExploreFeedError.FailedToAddToFeed(error))
+        } catch (error: NetworkException) {
+            Napier.w(throwable = error) { "Failed to add feed due to network error." }
+            setErrorState(error = ExploreFeedError.FailedToAddToFeed(error))
+        } finally {
+            setState { copy(saving = false) }
+        }
+    }
+
+    private suspend fun removeFromMyFeeds() {
+        try {
+            val userId = activeAccountStore.activeUserId()
+            feedsRepository.removeFeedLocally(userId = userId, feedSpec = feedSpec)
+            feedsRepository.persistRemotelyAllLocalUserFeeds(userId = userId)
+        } catch (error: SignatureException) {
+            Napier.w(throwable = error) { "Failed to remove feed due to signature error." }
+            setErrorState(error = ExploreFeedError.FailedToRemoveFeed(error))
+        } catch (error: NetworkException) {
+            Napier.w(throwable = error) { "Failed to remove feed due to network error." }
+            setErrorState(error = ExploreFeedError.FailedToRemoveFeed(error))
+        }
+    }
+
+    private fun setErrorState(error: ExploreFeedError) {
+        setState { copy(error = error) }
+        viewModelScope.launch {
+            delay(2.seconds)
+            if (state.value.error == error) {
+                setState { copy(error = null) }
+            }
+        }
+    }
+}

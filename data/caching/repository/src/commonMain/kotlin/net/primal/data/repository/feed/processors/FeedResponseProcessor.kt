@@ -1,0 +1,213 @@
+package net.primal.data.repository.feed.processors
+
+import net.primal.core.utils.asMapByKey
+import net.primal.core.utils.serialization.decodeFromJsonStringOrNull
+import net.primal.data.local.dao.events.eventRelayHintsUpserter
+import net.primal.data.local.dao.threads.ArticleCommentCrossRef
+import net.primal.data.local.dao.threads.NoteConversationCrossRef
+import net.primal.data.local.db.PrimalDatabase
+import net.primal.data.remote.api.feed.model.FeedResponse
+import net.primal.data.remote.mapper.flatMapNotNullAsCdnResource
+import net.primal.data.remote.mapper.flatMapNotNullAsLinkPreviewResource
+import net.primal.data.remote.mapper.flatMapNotNullAsVideoThumbnailsMap
+import net.primal.data.remote.mapper.mapAsMapPubkeyToListOfBlossomServers
+import net.primal.data.repository.mappers.remote.applyPollStats
+import net.primal.data.repository.mappers.remote.flatMapAsEventHintsPO
+import net.primal.data.repository.mappers.remote.flatMapPostsAsEventUriPO
+import net.primal.data.repository.mappers.remote.flatMapPostsAsReferencedNostrUriDO
+import net.primal.data.repository.mappers.remote.mapAsEventZapDO
+import net.primal.data.repository.mappers.remote.mapAsPollResponseVotes
+import net.primal.data.repository.mappers.remote.mapAsPostDataPO
+import net.primal.data.repository.mappers.remote.mapAsProfileDataPO
+import net.primal.data.repository.mappers.remote.mapAsZapPollVotes
+import net.primal.data.repository.mappers.remote.mapNotNullAsArticleDataPO
+import net.primal.data.repository.mappers.remote.mapNotNullAsEventStatsPO
+import net.primal.data.repository.mappers.remote.mapNotNullAsEventUserStatsPO
+import net.primal.data.repository.mappers.remote.mapNotNullAsPollDataPO
+import net.primal.data.repository.mappers.remote.mapNotNullAsPostDataPO
+import net.primal.data.repository.mappers.remote.mapNotNullAsRepostDataPO
+import net.primal.data.repository.mappers.remote.mapNotNullAsStreamDataPO
+import net.primal.data.repository.mappers.remote.mapReferencedEventsAsArticleDataPO
+import net.primal.data.repository.mappers.remote.mapReferencedEventsAsHighlightDataPO
+import net.primal.data.repository.mappers.remote.mapReferencedNostrUriAsEventUriNostrPO
+import net.primal.data.repository.mappers.remote.parseAndMapPrimalLegendProfiles
+import net.primal.data.repository.mappers.remote.parseAndMapPrimalPollStats
+import net.primal.data.repository.mappers.remote.parseAndMapPrimalPremiumInfo
+import net.primal.data.repository.mappers.remote.parseAndMapPrimalUserNames
+import net.primal.domain.nostr.NostrEvent
+import net.primal.domain.nostr.findReplyTargetId
+import net.primal.shared.data.local.db.withTransaction
+
+internal suspend fun FeedResponse.persistToDatabaseAsTransaction(userId: String, database: PrimalDatabase) {
+    database.withTransaction {
+        persistToDatabase(userId = userId, database = database)
+    }
+}
+
+internal suspend inline fun FeedResponse.persistToDatabase(userId: String, database: PrimalDatabase) {
+    val cdnResources = this.cdnResources.flatMapNotNullAsCdnResource().asMapByKey { it.url }
+    val videoThumbnails = this.cdnResources.flatMapNotNullAsVideoThumbnailsMap()
+    val linkPreviews = primalLinkPreviews.flatMapNotNullAsLinkPreviewResource().asMapByKey { it.url }
+    val eventHints = this.primalRelayHints.flatMapAsEventHintsPO()
+
+    val articles = this.articles.mapNotNullAsArticleDataPO(cdnResources = cdnResources)
+    val referencedArticles = this.referencedEvents.mapReferencedEventsAsArticleDataPO(cdnResources = cdnResources)
+    val referencedHighlights = this.referencedEvents.mapReferencedEventsAsHighlightDataPO()
+    val allArticles = articles + referencedArticles
+
+    val referencedPostsWithoutReplyTo = referencedEvents.mapNotNullAsPostDataPO()
+    val referencedPostsWithReplyTo = referencedEvents.mapNotNullAsPostDataPO(
+        referencedPosts = referencedPostsWithoutReplyTo,
+        referencedArticles = allArticles,
+        referencedHighlights = referencedHighlights,
+    )
+    val feedPosts = (notes + polls).mapAsPostDataPO(
+        referencedPosts = referencedPostsWithReplyTo,
+        referencedArticles = allArticles,
+        referencedHighlights = referencedHighlights,
+    )
+
+    val primalUserNames = this.primalUserNames.parseAndMapPrimalUserNames()
+    val primalPremiumInfo = this.primalPremiumInfo.parseAndMapPrimalPremiumInfo()
+    val primalLegendProfiles = this.primalLegendProfiles.parseAndMapPrimalLegendProfiles()
+    val existingPrimalLegendProfiles = database.profiles()
+        .findLegendProfileData(profileIds = this.metadata.map { it.pubKey })
+        .mapNotNull { it.value?.legendProfile?.let { value -> it.key to value } }
+        .toMap()
+
+    val blossomServers = this.blossomServers.mapAsMapPubkeyToListOfBlossomServers()
+
+    val profiles = metadata.mapAsProfileDataPO(
+        cdnResourcesMap = cdnResources,
+        primalUserNames = primalUserNames,
+        primalPremiumInfo = primalPremiumInfo,
+        primalLegendProfiles = primalLegendProfiles + existingPrimalLegendProfiles,
+        blossomServers = blossomServers,
+    )
+    val profileIdToProfileDataMap = profiles.asMapByKey { it.ownerId }
+    val eventIdMap = profileIdToProfileDataMap.mapValues { it.value.eventId }
+
+    val allPosts = (referencedPostsWithReplyTo + feedPosts).map { postData ->
+        postData.copy(authorMetadataId = eventIdMap[postData.authorId])
+    }
+
+    val noteAttachments = allPosts.flatMapPostsAsEventUriPO(
+        cdnResources = cdnResources,
+        linkPreviews = linkPreviews,
+        videoThumbnails = videoThumbnails,
+    )
+
+    val refEvents = referencedEvents.mapNotNull { it.content.decodeFromJsonStringOrNull<NostrEvent>() }
+    val streamData = liveActivity.mapNotNullAsStreamDataPO() + refEvents.mapNotNullAsStreamDataPO()
+
+    val pollStatsMap = this.primalPollStats.parseAndMapPrimalPollStats()
+    val allPollData = (this.polls + refEvents).mapNotNullAsPollDataPO()
+    val pollDataWithStats = allPollData.filter { it.postId in pollStatsMap }.applyPollStats(pollStatsMap)
+    val pollDataWithoutStats = allPollData.filter { it.postId !in pollStatsMap }
+    val pollData = pollDataWithStats + pollDataWithoutStats
+    val pollVotes = this.pollResponses.mapAsPollResponseVotes() + this.zaps.mapAsZapPollVotes()
+
+    val eventZaps = zaps.mapAsEventZapDO(profilesMap = profiles.associateBy { it.ownerId })
+    val reposts = reposts.mapNotNullAsRepostDataPO()
+    val postStats = primalEventStats.mapNotNullAsEventStatsPO()
+    val userPostStats = primalEventUserStats.mapNotNullAsEventUserStatsPO(userId = userId)
+
+    val userVotedOptionMap = userPostStats
+        .filter { it.votedForOption != null }
+        .associate { it.eventId to it.votedForOption }
+
+    val noteNostrUris = allPosts.flatMapPostsAsReferencedNostrUriDO(
+        eventIdToNostrEvent = refEvents.associateBy { it.id },
+        postIdToPostDataMap = allPosts.associateBy { it.postId },
+        articleIdToArticle = allArticles.associateBy { it.articleId },
+        streamIdToStreamData = streamData.associateBy { it.dTag },
+        profileIdToProfileDataMap = profileIdToProfileDataMap,
+        cdnResources = cdnResources,
+        videoThumbnails = videoThumbnails,
+        linkPreviews = linkPreviews,
+        postIdToPollDataMap = pollData.associateBy { it.postId },
+        postIdToUserVotedOption = userVotedOptionMap,
+    ).mapReferencedNostrUriAsEventUriNostrPO()
+
+    database.profiles().insertOrUpdateAll(data = profiles)
+    database.posts().upsertAll(data = allPosts)
+    database.polls().upsertAll(data = pollDataWithStats)
+    database.polls().insertAllOrIgnore(data = pollDataWithoutStats)
+    database.pollVotes().upsertAll(data = pollVotes)
+    database.eventUris().upsertAllEventUris(data = noteAttachments)
+    database.eventUris().upsertAllEventNostrUris(data = noteNostrUris)
+    database.reposts().upsertAll(data = reposts)
+    database.eventZaps().upsertAll(data = eventZaps)
+    database.eventStats().upsertAll(data = postStats)
+    database.eventUserStats().upsertAll(data = userPostStats)
+    database.articles().upsertAll(list = allArticles)
+    database.highlights().upsertAll(data = referencedHighlights)
+    database.streams().upsertStreamData(data = streamData)
+    database.threadConversations().connectNoteWithReply(
+        data = allPosts.map {
+            NoteConversationCrossRef(
+                noteId = it.postId,
+                replyNoteId = it.postId,
+            )
+        },
+    )
+    database.threadConversations().connectNoteWithReply(
+        data = allPosts.mapNotNull {
+            NoteConversationCrossRef(
+                noteId = it.replyToPostId ?: return@mapNotNull null,
+                replyNoteId = it.postId,
+            )
+        },
+    )
+
+    val eventHintsDao = database.eventHints()
+    val hintsMap = eventHints.associateBy { it.eventId }
+    eventRelayHintsUpserter(dao = eventHintsDao, eventIds = eventHints.map { it.eventId }) {
+        copy(relays = hintsMap[this.eventId]?.relays ?: emptyList())
+    }
+}
+
+internal suspend fun FeedResponse.persistNoteRepliesAndArticleCommentsToDatabase(
+    noteId: String,
+    database: PrimalDatabase,
+) {
+    val cdnResources = this.cdnResources.flatMapNotNullAsCdnResource().asMapByKey { it.url }
+    val articles = this.articles.mapNotNullAsArticleDataPO(cdnResources = cdnResources)
+
+    database.withTransaction {
+        val eventsById = (notes + polls).associateBy { it.id }
+
+        // Walk ancestor chain upward from noteId and connect ancestors to this conversation
+        val ancestors = mutableSetOf<String>()
+        var currentId: String? = noteId
+        while (currentId != null) {
+            val event = eventsById[currentId]
+            val parentId = event?.tags?.findReplyTargetId()
+            if (parentId != null && parentId != currentId && ancestors.add(parentId)) {
+                currentId = parentId
+            } else {
+                break
+            }
+        }
+
+        if (ancestors.isNotEmpty()) {
+            database.threadConversations().connectNoteWithReply(
+                data = ancestors.map {
+                    NoteConversationCrossRef(
+                        noteId = noteId,
+                        replyNoteId = it,
+                    )
+                },
+            )
+        }
+        database.threadConversations().connectArticleWithComment(
+            data = articles.map { article ->
+                ArticleCommentCrossRef(
+                    articleId = article.articleId,
+                    articleAuthorId = article.authorId,
+                    commentNoteId = noteId,
+                )
+            },
+        )
+    }
+}

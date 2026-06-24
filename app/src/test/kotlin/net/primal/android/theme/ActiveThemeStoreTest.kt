@@ -1,0 +1,136 @@
+package net.primal.android.theme
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
+import androidx.datastore.dataStoreFile
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import net.primal.android.core.serialization.datastore.StringSerializer
+import net.primal.android.theme.active.ActiveThemeStore
+import net.primal.core.testing.CoroutinesTestRule
+import net.primal.core.testing.advanceUntilIdleAndDelay
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@ExperimentalCoroutinesApi
+@RunWith(AndroidJUnit4::class)
+class ActiveThemeStoreTest {
+
+    companion object {
+        private const val DATA_STORE_FILE = "activeTheme"
+    }
+
+    @get:Rule
+    val coroutinesTestRule = CoroutinesTestRule()
+
+    private val testContext: Context = InstrumentationRegistry.getInstrumentation().targetContext
+
+    private val persistence: DataStore<String> = DataStoreFactory.create(
+        serializer = StringSerializer(),
+        produceFile = { testContext.dataStoreFile(DATA_STORE_FILE) },
+    )
+
+    private fun createActiveThemeStore(): ActiveThemeStore {
+        return ActiveThemeStore(
+            dispatchers = coroutinesTestRule.dispatcherProvider,
+            persistence = persistence,
+        )
+    }
+
+    @Test
+    fun `initialValue is null`() {
+        val activeThemeStore = createActiveThemeStore()
+        val actual = activeThemeStore.userThemeState.value
+        actual.shouldBeNull()
+    }
+
+    @Test
+    fun `setUserTheme stores the user theme`() =
+        runTest {
+            val expectedTheme = net.primal.android.theme.domain.PrimalTheme.Midnight
+            val activeThemeStore = createActiveThemeStore()
+            activeThemeStore.setUserTheme(expectedTheme.themeName)
+            advanceUntilIdleAndDelay()
+
+            val actual = activeThemeStore.userThemeState.value
+            actual.shouldNotBeNull()
+            actual shouldBe expectedTheme
+        }
+
+    @Test
+    fun `userThemeState is null if unknown theme is saved`() =
+        runTest {
+            persistence.updateData { "PrimalFutureTheme" }
+            val activeThemeStore = createActiveThemeStore()
+            advanceUntilIdle()
+
+            val actual = activeThemeStore.userThemeState.value
+            actual.shouldBeNull()
+        }
+
+    @Test
+    fun `userThemeState corresponds to saved theme`() =
+        runTest {
+            val expectedTheme = net.primal.android.theme.domain.PrimalTheme.Ice
+            persistence.updateData { expectedTheme.themeName }
+            val activeThemeStore = createActiveThemeStore()
+            advanceUntilIdle()
+
+            val actual = activeThemeStore.userThemeState.value
+            actual.shouldNotBeNull()
+            actual shouldBe expectedTheme
+        }
+
+    @Test
+    fun `legacy sunset theme migrates to Midnight`() =
+        runTest {
+            persistence.updateData { "sunset" }
+            val activeThemeStore = createActiveThemeStore()
+            advanceUntilIdle()
+
+            val actual = activeThemeStore.userThemeState.value
+            actual.shouldNotBeNull()
+            actual shouldBe net.primal.android.theme.domain.PrimalTheme.Midnight
+        }
+
+    @Test
+    fun `legacy sunrise theme migrates to Ice`() =
+        runTest {
+            persistence.updateData { "sunrise" }
+            val activeThemeStore = createActiveThemeStore()
+            advanceUntilIdle()
+
+            val actual = activeThemeStore.userThemeState.value
+            actual.shouldNotBeNull()
+            actual shouldBe net.primal.android.theme.domain.PrimalTheme.Ice
+        }
+
+    @Test
+    fun `legacy sunset theme persists migrated value to DataStore`() =
+        runTest {
+            persistence.updateData { "sunset" }
+            createActiveThemeStore()
+
+            val persisted = persistence.data.first()
+            persisted shouldBe "midnight"
+        }
+
+    @Test
+    fun `legacy sunrise theme persists migrated value to DataStore`() =
+        runTest {
+            persistence.updateData { "sunrise" }
+            createActiveThemeStore()
+
+            val persisted = persistence.data.first()
+            persisted shouldBe "ice"
+        }
+}

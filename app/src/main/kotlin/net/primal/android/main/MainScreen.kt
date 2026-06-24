@@ -1,0 +1,907 @@
+package net.primal.android.main
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.TopAppBarState
+import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
+import androidx.paging.PagingData
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import net.primal.android.R
+import net.primal.android.core.activity.LocalContentDisplaySettings
+import net.primal.android.core.compose.AppBarPage
+import net.primal.android.core.compose.PrimalOverlay
+import net.primal.android.core.compose.PrimalTopLevelDestination
+import net.primal.android.core.compose.SnackbarErrorHandler
+import net.primal.android.core.compose.fab.NewPostFloatingActionButton
+import net.primal.android.core.compose.runtime.DisposableLifecycleObserverEffect
+import net.primal.android.core.errors.resolveUiErrorMessage
+import net.primal.android.drawer.DrawerScreenDestination
+import net.primal.android.drawer.PrimalDrawer
+import net.primal.android.drawer.PrimalMainScaffold
+import net.primal.android.drawer.multiaccount.events.AccountSwitcherCallbacks
+import net.primal.android.explore.search.ui.SearchScope
+import net.primal.android.feeds.list.FeedListOverlayContent
+import net.primal.android.feeds.list.ui.model.FeedUi
+import net.primal.android.main.explore.ExploreHomeContent
+import net.primal.android.main.explore.ExploreTopAppBar
+import net.primal.android.main.explore.section.ExploreSection
+import net.primal.android.main.explore.section.ExploreSectionListOverlayContent
+import net.primal.android.main.feeds.NoteFeedTopAppBar
+import net.primal.android.main.feeds.NoteFeedsContent
+import net.primal.android.main.feeds.NoteFeedsContract
+import net.primal.android.main.feeds.NoteFeedsViewModel
+import net.primal.android.main.notifications.NotificationFilterOverlayContent
+import net.primal.android.main.notifications.NotificationsContent
+import net.primal.android.main.notifications.NotificationsContract
+import net.primal.android.main.notifications.NotificationsTopAppBar
+import net.primal.android.main.notifications.NotificationsViewModel
+import net.primal.android.main.notifications.toAppBarPages
+import net.primal.android.main.reads.ArticleFeedTopAppBar
+import net.primal.android.main.reads.ReadsContent
+import net.primal.android.main.reads.ReadsScreenContract
+import net.primal.android.main.reads.ReadsViewModel
+import net.primal.android.main.wallet.WalletDashboardContent
+import net.primal.android.main.wallet.WalletDashboardContract
+import net.primal.android.main.wallet.WalletDashboardTopAppBar
+import net.primal.android.main.wallet.WalletDashboardViewModel
+import net.primal.android.navigation.accountSwitcherCallbacksHandler
+import net.primal.android.navigation.navigateToAdvancedSearch
+import net.primal.android.navigation.navigateToExploreFeed
+import net.primal.android.navigation.navigateToFollowPack
+import net.primal.android.navigation.navigateToHome
+import net.primal.android.navigation.navigateToNoteEditor
+import net.primal.android.navigation.navigateToProfileQrCodeViewer
+import net.primal.android.navigation.navigateToSearch
+import net.primal.android.navigation.noteCallbacksHandler
+import net.primal.android.notes.feed.note.ui.events.NoteCallbacks
+import net.primal.android.notifications.list.ui.NotificationUi
+import net.primal.android.premium.legend.domain.LegendaryCustomization
+import net.primal.android.stream.player.LocalStreamState
+import net.primal.android.wallet.picker.WalletPickerOverlayContent
+import net.primal.domain.feeds.FeedSpecKind
+import net.primal.domain.feeds.buildAdvancedSearchNotesFeedSpec
+import net.primal.domain.links.CdnImage
+import net.primal.domain.notifications.NotificationGroup
+
+internal const val REQUESTED_TAB_KEY = "requestedTab"
+
+@Suppress("LongMethod")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen(
+    navController: NavController,
+    navBackStackEntry: NavBackStackEntry,
+    onDrawerDestinationClick: (DrawerScreenDestination) -> Unit,
+) {
+    val uiScope = rememberCoroutineScope()
+
+    // Tab state management
+    var activeTab by rememberSaveable { mutableStateOf(PrimalTopLevelDestination.Feeds) }
+    // Observe requestedTab from external navigation
+    val requestedTab = navBackStackEntry.savedStateHandle
+        .getStateFlow<String?>(REQUESTED_TAB_KEY, null)
+        .collectAsState()
+
+    LaunchedEffect(requestedTab.value) {
+        val tabName = requestedTab.value ?: return@LaunchedEffect
+        val destination = PrimalTopLevelDestination.entries.find { it.name == tabName }
+        if (destination != null && destination != activeTab) {
+            activeTab = destination
+        }
+        navBackStackEntry.savedStateHandle[REQUESTED_TAB_KEY] = null
+    }
+
+    // Shared callbacks
+    val noteCallbacks = noteCallbacksHandler(navController)
+    val accountSwitcherCallbacks = accountSwitcherCallbacksHandler(navController)
+
+    val mainViewModel = hiltViewModel<MainViewModel>(navBackStackEntry)
+    val mainState by mainViewModel.state.collectAsState()
+
+    MainScreenSharedEffects(mainViewModel, navController)
+
+    val noteFeedsViewModel = hiltViewModel<NoteFeedsViewModel>(navBackStackEntry)
+    val noteFeedsState by noteFeedsViewModel.state.collectAsState()
+
+    MainScreenHomeEffects(noteFeedsViewModel)
+
+    val readsViewModel = hiltViewModel<ReadsViewModel>(navBackStackEntry)
+    val readsState by readsViewModel.state.collectAsState()
+
+    val notificationsViewModel = hiltViewModel<NotificationsViewModel>(navBackStackEntry)
+    val notificationsState by notificationsViewModel.state.collectAsState()
+
+    val homeTopAppBarState = rememberHomeTopAppBarState()
+    val currentTopAppBarState = rememberPerTabTopAppBarState(activeTab, homeTopAppBarState)
+
+    val sharedState = rememberMainScreenSharedState(
+        noteFeedsState = noteFeedsState,
+        readsState = readsState,
+    )
+
+    SnackbarErrorHandler(
+        error = noteFeedsState.uiError,
+        snackbarHostState = sharedState.snackbarHostState,
+        errorMessageResolver = { it.resolveUiErrorMessage(context = LocalContext.current) },
+        onErrorDismiss = { noteFeedsViewModel.setEvent(NoteFeedsContract.UiEvent.DismissError) },
+    )
+
+    WalletErrorHandler(navBackStackEntry, sharedState.snackbarHostState)
+
+    val onActiveDestinationClick: () -> Unit = {
+        if (activeTab == PrimalTopLevelDestination.Explore) {
+            navController.navigateToSearch(searchScope = SearchScope.Notes)
+        } else {
+            handleActiveDestinationClick(activeTab, sharedState, uiScope)
+        }
+    }
+
+    val onTabChanged: (PrimalTopLevelDestination) -> Unit = { destination ->
+        if (destination != activeTab) {
+            activeTab = destination
+        }
+    }
+
+    val focusModeEnabled = when (activeTab) {
+        PrimalTopLevelDestination.Wallet,
+        PrimalTopLevelDestination.Explore,
+        -> false
+
+        else -> LocalContentDisplaySettings.current.focusModeEnabled
+    }
+
+    BackHandler(enabled = activeTab != PrimalTopLevelDestination.Feeds) {
+        activeTab = PrimalTopLevelDestination.Feeds
+    }
+
+    MainScreenScaffold(
+        activeTab = activeTab,
+        mainState = mainState,
+        mainEventPublisher = mainViewModel::setEvent,
+        homeState = noteFeedsState,
+        homeEventPublisher = noteFeedsViewModel::setEvent,
+        readsState = readsState,
+        readsEventPublisher = readsViewModel::setEvent,
+        notificationsState = notificationsState,
+        notificationsSeenProvider = notificationsViewModel::seenNotificationsForGroup,
+        notificationsUnseenProvider = notificationsViewModel::unseenNotificationsForGroup,
+        onNotificationsSeen = { group ->
+            notificationsViewModel.setEvent(
+                NotificationsContract.UiEvent.NotificationsSeen(group = group),
+            )
+        },
+        homeTopAppBarState = homeTopAppBarState,
+        currentTopAppBarState = currentTopAppBarState,
+        sharedState = sharedState,
+        noteCallbacks = noteCallbacks,
+        accountSwitcherCallbacks = accountSwitcherCallbacks,
+        focusModeEnabled = focusModeEnabled,
+        onActiveDestinationClick = onActiveDestinationClick,
+        onTabChanged = onTabChanged,
+        onDrawerDestinationClick = onDrawerDestinationClick,
+        navController = navController,
+    )
+}
+
+@Suppress("LongMethod")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainScreenTopAppBar(
+    activeTab: PrimalTopLevelDestination,
+    scrollBehavior: TopAppBarScrollBehavior?,
+    onAvatarClick: () -> Unit,
+    onAvatarSwipeDown: (() -> Unit)? = null,
+    onFeedPickerRequest: () -> Unit,
+    onReadPickerRequest: () -> Unit,
+    onWalletPickerRequest: () -> Unit,
+    onAlertsFilterPickerRequest: () -> Unit,
+    titleOverride: String? = null,
+    subtitleOverride: String? = null,
+    chevronExpanded: Boolean = false,
+    avatarCdnImage: CdnImage?,
+    avatarLegendaryCustomization: LegendaryCustomization?,
+    avatarBlossoms: List<String>,
+    homeActiveFeed: FeedUi?,
+    readsActiveFeed: FeedUi?,
+    homePagerState: PagerState,
+    readsPagerState: PagerState,
+    explorePagerState: PagerState,
+    notificationsPagerState: PagerState,
+    notificationsPages: List<AppBarPage>,
+    exploreActiveSection: ExploreSection,
+    onExploreSectionPickerRequest: () -> Unit,
+    onExploreSearchClick: () -> Unit,
+    onExploreAdvancedSearchClick: () -> Unit,
+    homeFeeds: List<FeedUi>,
+    readsFeeds: List<FeedUi>,
+) {
+    when (activeTab) {
+        PrimalTopLevelDestination.Feeds -> {
+            NoteFeedTopAppBar(
+                title = homeActiveFeed?.title ?: "",
+                pagerState = homePagerState,
+                feeds = homeFeeds,
+                activeFeed = homeActiveFeed,
+                avatarCdnImage = avatarCdnImage,
+                avatarLegendaryCustomization = avatarLegendaryCustomization,
+                avatarBlossoms = avatarBlossoms,
+                onAvatarClick = onAvatarClick,
+                onAvatarSwipeDown = onAvatarSwipeDown,
+                onFeedPickerRequest = onFeedPickerRequest,
+                scrollBehavior = scrollBehavior,
+                titleOverride = titleOverride,
+                subtitleOverride = subtitleOverride,
+                chevronExpanded = chevronExpanded,
+            )
+        }
+
+        PrimalTopLevelDestination.Reads -> {
+            ArticleFeedTopAppBar(
+                title = readsActiveFeed?.title ?: "",
+                pagerState = readsPagerState,
+                feeds = readsFeeds,
+                activeFeed = readsActiveFeed,
+                avatarCdnImage = avatarCdnImage,
+                avatarLegendaryCustomization = avatarLegendaryCustomization,
+                avatarBlossoms = avatarBlossoms,
+                onAvatarClick = onAvatarClick,
+                onAvatarSwipeDown = onAvatarSwipeDown,
+                onFeedPickerRequest = onReadPickerRequest,
+                scrollBehavior = scrollBehavior,
+                titleOverride = titleOverride,
+                subtitleOverride = subtitleOverride,
+                chevronExpanded = chevronExpanded,
+            )
+        }
+
+        PrimalTopLevelDestination.Explore -> {
+            ExploreTopAppBar(
+                activeSection = exploreActiveSection,
+                pagerState = explorePagerState,
+                onExploreSectionPickerRequest = onExploreSectionPickerRequest,
+                onSearchClick = onExploreSearchClick,
+                onAdvancedSearchClick = onExploreAdvancedSearchClick,
+                avatarCdnImage = avatarCdnImage,
+                avatarLegendaryCustomization = avatarLegendaryCustomization,
+                avatarBlossoms = avatarBlossoms,
+                onAvatarClick = onAvatarClick,
+                onAvatarSwipeDown = onAvatarSwipeDown,
+                scrollBehavior = scrollBehavior,
+                chevronExpanded = chevronExpanded,
+                titleOverride = titleOverride,
+                subtitleOverride = subtitleOverride,
+            )
+        }
+
+        PrimalTopLevelDestination.Alerts -> {
+            NotificationsTopAppBar(
+                avatarCdnImage = avatarCdnImage,
+                avatarLegendaryCustomization = avatarLegendaryCustomization,
+                avatarBlossoms = avatarBlossoms,
+                scrollBehavior = scrollBehavior,
+                onAvatarClick = onAvatarClick,
+                onAvatarSwipeDown = onAvatarSwipeDown,
+                titleOverride = titleOverride,
+                subtitleOverride = subtitleOverride,
+                pagerState = notificationsPagerState,
+                pages = notificationsPages,
+                showTitleChevron = true,
+                chevronExpanded = chevronExpanded,
+                onTitleClick = onAlertsFilterPickerRequest,
+            )
+        }
+
+        PrimalTopLevelDestination.Wallet -> WalletDashboardTopAppBar(
+            scrollBehavior = scrollBehavior,
+            onAvatarClick = onAvatarClick,
+            onAvatarSwipeDown = onAvatarSwipeDown,
+            onWalletPickerRequest = onWalletPickerRequest,
+            titleOverride = titleOverride,
+            subtitleOverride = subtitleOverride,
+            chevronExpanded = chevronExpanded,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScaffoldTopAppBar(
+    activeTab: PrimalTopLevelDestination,
+    scrollBehavior: TopAppBarScrollBehavior?,
+    mainState: MainContract.UiState,
+    mainEventPublisher: (MainContract.UiEvent) -> Unit,
+    accountDrawerVisible: Boolean,
+    feedPickerVisible: Boolean,
+    readPickerVisible: Boolean,
+    walletPickerVisible: Boolean,
+    exploreSectionPickerVisible: Boolean,
+    alertsFilterPickerVisible: Boolean,
+    sharedState: MainScreenSharedState,
+    toggleOverlay: (ActiveOverlay) -> Unit,
+    onExploreSearchClick: () -> Unit,
+    onExploreAdvancedSearchClick: () -> Unit,
+    exploreActiveSection: ExploreSection,
+    homeFeeds: List<FeedUi>,
+    readsFeeds: List<FeedUi>,
+) {
+    val drawerTitle = if (accountDrawerVisible) stringResource(id = R.string.account_drawer_title) else null
+    val drawerSubtitle = if (accountDrawerVisible) {
+        stringResource(id = R.string.account_drawer_subtitle)
+    } else {
+        null
+    }
+    val notificationsPages = NotificationGroup.entries.toAppBarPages()
+
+    MainScreenTopAppBar(
+        activeTab = activeTab,
+        scrollBehavior = scrollBehavior,
+        onAvatarClick = { toggleOverlay(ActiveOverlay.AccountDrawer) },
+        onAvatarSwipeDown = if (mainState.hasMultipleAccounts) {
+            { mainEventPublisher(MainContract.UiEvent.SwitchToNextAccount) }
+        } else {
+            null
+        },
+        onFeedPickerRequest = { toggleOverlay(ActiveOverlay.FeedPicker) },
+        onReadPickerRequest = { toggleOverlay(ActiveOverlay.ReadPicker) },
+        onWalletPickerRequest = { toggleOverlay(ActiveOverlay.WalletPicker) },
+        onAlertsFilterPickerRequest = { toggleOverlay(ActiveOverlay.AlertsFilter) },
+        titleOverride = drawerTitle,
+        subtitleOverride = drawerSubtitle,
+        chevronExpanded = feedPickerVisible ||
+            readPickerVisible ||
+            walletPickerVisible ||
+            exploreSectionPickerVisible ||
+            alertsFilterPickerVisible,
+        avatarCdnImage = mainState.activeAccountAvatarCdnImage,
+        avatarLegendaryCustomization = mainState.activeAccountLegendaryCustomization,
+        avatarBlossoms = mainState.activeAccountBlossoms,
+        homeActiveFeed = sharedState.homeActiveFeed.value,
+        readsActiveFeed = sharedState.readsActiveFeed.value,
+        homePagerState = sharedState.homePagerState,
+        readsPagerState = sharedState.readsPagerState,
+        explorePagerState = sharedState.explorePagerState,
+        notificationsPagerState = sharedState.notificationsPagerState,
+        notificationsPages = notificationsPages,
+        exploreActiveSection = exploreActiveSection,
+        onExploreSectionPickerRequest = { toggleOverlay(ActiveOverlay.ExploreSectionPicker) },
+        onExploreSearchClick = onExploreSearchClick,
+        onExploreAdvancedSearchClick = onExploreAdvancedSearchClick,
+        homeFeeds = homeFeeds,
+        readsFeeds = readsFeeds,
+    )
+}
+
+@Suppress("LongMethod")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainScreenContent(
+    activeTab: PrimalTopLevelDestination,
+    saveableStateHolder: androidx.compose.runtime.saveable.SaveableStateHolder,
+    paddingValues: PaddingValues,
+    sharedState: MainScreenSharedState,
+    noteCallbacks: NoteCallbacks,
+    homeState: NoteFeedsContract.UiState,
+    homeEventPublisher: (NoteFeedsContract.UiEvent) -> Unit,
+    readsState: ReadsScreenContract.UiState,
+    readsEventPublisher: (ReadsScreenContract.UiEvent) -> Unit,
+    notificationsState: NotificationsContract.UiState,
+    notificationsSeenProvider: (NotificationGroup) -> Flow<PagingData<NotificationUi>>,
+    notificationsUnseenProvider: (NotificationGroup) -> Flow<List<List<NotificationUi>>>,
+    onNotificationsSeen: (NotificationGroup) -> Unit,
+    homeTopAppBarState: TopAppBarState,
+    navController: NavController,
+    onTabChanged: (PrimalTopLevelDestination) -> Unit,
+) {
+    val onGoToWallet = { onTabChanged(PrimalTopLevelDestination.Wallet) }
+    Box {
+        Box(
+            modifier = if (activeTab != PrimalTopLevelDestination.Feeds) {
+                Modifier.graphicsLayer { alpha = 0f }
+            } else {
+                Modifier
+            },
+        ) {
+            NoteFeedsContent(
+                state = homeState,
+                pagerState = sharedState.homePagerState,
+                noteCallbacks = noteCallbacks,
+                eventPublisher = homeEventPublisher,
+                onActiveFeedChanged = { sharedState.homeActiveFeed.value = it },
+                topAppBarCollapsedFraction = homeTopAppBarState.collapsedFraction,
+                shouldAnimateScrollToTop = sharedState.homeShouldAnimateScrollToTop,
+                scrollToFeed = sharedState.homeScrollToFeed,
+                snackbarHostState = sharedState.snackbarHostState,
+                paddingValues = paddingValues,
+                onGoToWallet = onGoToWallet,
+            )
+        }
+
+        if (activeTab != PrimalTopLevelDestination.Feeds) {
+            saveableStateHolder.SaveableStateProvider(activeTab.name) {
+                when (activeTab) {
+                    PrimalTopLevelDestination.Reads -> ReadsContent(
+                        state = readsState,
+                        pagerState = sharedState.readsPagerState,
+                        eventPublisher = readsEventPublisher,
+                        onActiveFeedChanged = { sharedState.readsActiveFeed.value = it },
+                        shouldAnimateScrollToTop = sharedState.readsShouldAnimateScrollToTop,
+                        scrollToFeed = sharedState.readsScrollToFeed,
+                        snackbarHostState = sharedState.snackbarHostState,
+                        paddingValues = paddingValues,
+                        navController = navController,
+                    )
+
+                    PrimalTopLevelDestination.Explore -> ExploreHomeContent(
+                        pagerState = sharedState.explorePagerState,
+                        paddingValues = paddingValues,
+                        noteCallbacks = noteCallbacks,
+                        snackbarHostState = sharedState.snackbarHostState,
+                        onFollowPackClick = { profileId, identifier ->
+                            navController.navigateToFollowPack(profileId, identifier)
+                        },
+                        onRecentSearchEditClick = { query ->
+                            navController.navigateToSearch(
+                                searchScope = SearchScope.Notes,
+                                initialQuery = query,
+                            )
+                        },
+                        onRecentSearchExecuteClick = { query ->
+                            navController.navigateToExploreFeed(
+                                feedSpec = buildAdvancedSearchNotesFeedSpec(query = query),
+                            )
+                        },
+                        onGoToWallet = onGoToWallet,
+                    )
+
+                    PrimalTopLevelDestination.Alerts -> NotificationsContent(
+                        pagerState = sharedState.notificationsPagerState,
+                        badges = notificationsState.badges,
+                        seenNotificationsProvider = notificationsSeenProvider,
+                        unseenNotificationsProvider = notificationsUnseenProvider,
+                        onNotificationsSeen = onNotificationsSeen,
+                        paddingValues = paddingValues,
+                        noteCallbacks = noteCallbacks,
+                        onGoToWallet = onGoToWallet,
+                        shouldAnimateScrollToTop = sharedState.notificationsShouldAnimateScrollToTop,
+                    )
+
+                    PrimalTopLevelDestination.Wallet -> WalletDashboardContent(
+                        currencyMode = sharedState.walletCurrencyMode.value,
+                        onCurrencyModeToggle = { sharedState.walletCurrencyMode.value = it },
+                        onScrolledToTopChanged = { sharedState.walletIsScrolledToTop.value = it },
+                        shouldAnimateScrollToTop = sharedState.walletShouldAnimateScrollToTop,
+                        paddingValues = paddingValues,
+                        navController = navController,
+                    )
+
+                    else -> {}
+                }
+            }
+        }
+    }
+}
+
+@Suppress("LongMethod")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainScreenScaffold(
+    activeTab: PrimalTopLevelDestination,
+    mainState: MainContract.UiState,
+    mainEventPublisher: (MainContract.UiEvent) -> Unit,
+    homeState: NoteFeedsContract.UiState,
+    homeEventPublisher: (NoteFeedsContract.UiEvent) -> Unit,
+    readsState: ReadsScreenContract.UiState,
+    readsEventPublisher: (ReadsScreenContract.UiEvent) -> Unit,
+    notificationsState: NotificationsContract.UiState,
+    notificationsSeenProvider: (NotificationGroup) -> Flow<PagingData<NotificationUi>>,
+    notificationsUnseenProvider: (NotificationGroup) -> Flow<List<List<NotificationUi>>>,
+    onNotificationsSeen: (NotificationGroup) -> Unit,
+    homeTopAppBarState: TopAppBarState,
+    currentTopAppBarState: TopAppBarState,
+    sharedState: MainScreenSharedState,
+    noteCallbacks: NoteCallbacks,
+    accountSwitcherCallbacks: AccountSwitcherCallbacks,
+    focusModeEnabled: Boolean,
+    onActiveDestinationClick: () -> Unit,
+    onTabChanged: (PrimalTopLevelDestination) -> Unit,
+    onDrawerDestinationClick: (DrawerScreenDestination) -> Unit,
+    navController: NavController,
+) {
+    val saveableStateHolder = rememberSaveableStateHolder()
+    var activeOverlay by rememberSaveable { mutableStateOf<ActiveOverlay?>(null) }
+    val feedPickerVisible = activeOverlay == ActiveOverlay.FeedPicker
+    val readPickerVisible = activeOverlay == ActiveOverlay.ReadPicker
+    val walletPickerVisible = activeOverlay == ActiveOverlay.WalletPicker
+    val exploreSectionPickerVisible = activeOverlay == ActiveOverlay.ExploreSectionPicker
+    val accountDrawerVisible = activeOverlay == ActiveOverlay.AccountDrawer
+    val alertsFilterPickerVisible = activeOverlay == ActiveOverlay.AlertsFilter
+    val exploreActiveSection = ExploreSection.entries
+        .getOrElse(sharedState.explorePagerState.currentPage) { ExploreSection.Explore }
+    val notificationsActiveGroup = NotificationGroup.entries
+        .getOrElse(sharedState.notificationsPagerState.currentPage) { NotificationGroup.ALL }
+
+    val streamState = LocalStreamState.current
+    LaunchedEffect(activeOverlay) {
+        if (activeOverlay != null) streamState.acquireHide() else streamState.releaseHide()
+    }
+
+    fun toggleOverlay(overlay: ActiveOverlay) {
+        activeOverlay = if (activeOverlay == overlay) null else overlay
+    }
+
+    PrimalMainScaffold(
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
+        activeDestination = activeTab,
+        onActiveDestinationClick = onActiveDestinationClick,
+        onPrimaryDestinationChanged = onTabChanged,
+        badges = mainState.badges,
+        focusModeEnabled = focusModeEnabled,
+        topAppBarState = currentTopAppBarState,
+        topAppBar = { scrollBehavior ->
+            ScaffoldTopAppBar(
+                activeTab = activeTab,
+                scrollBehavior = scrollBehavior,
+                mainState = mainState,
+                mainEventPublisher = mainEventPublisher,
+                accountDrawerVisible = accountDrawerVisible,
+                feedPickerVisible = feedPickerVisible,
+                readPickerVisible = readPickerVisible,
+                walletPickerVisible = walletPickerVisible,
+                exploreSectionPickerVisible = exploreSectionPickerVisible,
+                alertsFilterPickerVisible = alertsFilterPickerVisible,
+                sharedState = sharedState,
+                toggleOverlay = ::toggleOverlay,
+                onExploreSearchClick = { navController.navigateToSearch(searchScope = SearchScope.Notes) },
+                onExploreAdvancedSearchClick = { navController.navigateToAdvancedSearch() },
+                exploreActiveSection = exploreActiveSection,
+                homeFeeds = homeState.feeds,
+                readsFeeds = readsState.feeds,
+            )
+        },
+        content = { paddingValues ->
+            MainScreenContent(
+                activeTab = activeTab,
+                saveableStateHolder = saveableStateHolder,
+                paddingValues = paddingValues,
+                sharedState = sharedState,
+                noteCallbacks = noteCallbacks,
+                homeState = homeState,
+                homeEventPublisher = homeEventPublisher,
+                readsState = readsState,
+                readsEventPublisher = readsEventPublisher,
+                notificationsState = notificationsState,
+                notificationsSeenProvider = notificationsSeenProvider,
+                notificationsUnseenProvider = notificationsUnseenProvider,
+                onNotificationsSeen = onNotificationsSeen,
+                homeTopAppBarState = homeTopAppBarState,
+                navController = navController,
+                onTabChanged = onTabChanged,
+            )
+        },
+        overlay = {
+            MainScreenOverlays(
+                accountDrawerVisible = accountDrawerVisible,
+                feedPickerVisible = feedPickerVisible,
+                readPickerVisible = readPickerVisible,
+                walletPickerVisible = walletPickerVisible,
+                exploreSectionPickerVisible = exploreSectionPickerVisible,
+                alertsFilterPickerVisible = alertsFilterPickerVisible,
+                notificationsActiveGroup = notificationsActiveGroup,
+                exploreActiveSection = exploreActiveSection,
+                sharedState = sharedState,
+                onDismissOverlay = { activeOverlay = null },
+                onDrawerDestinationClick = onDrawerDestinationClick,
+                accountSwitcherCallbacks = accountSwitcherCallbacks,
+                navController = navController,
+                onTabChanged = onTabChanged,
+            )
+        },
+        floatingActionButton = { MainScreenFab(activeTab = activeTab, navController = navController) },
+        snackbarHost = {
+            SnackbarHost(hostState = sharedState.snackbarHostState)
+        },
+    )
+}
+
+@Composable
+private fun MainScreenFab(activeTab: PrimalTopLevelDestination, navController: NavController) {
+    when (activeTab) {
+        PrimalTopLevelDestination.Feeds,
+        PrimalTopLevelDestination.Alerts,
+        -> NewPostFloatingActionButton(
+            onNewPostClick = { navController.navigateToNoteEditor(null) },
+        )
+
+        else -> {}
+    }
+}
+
+@Suppress("LongMethod")
+@Composable
+private fun MainScreenOverlays(
+    accountDrawerVisible: Boolean,
+    feedPickerVisible: Boolean,
+    readPickerVisible: Boolean,
+    walletPickerVisible: Boolean,
+    exploreSectionPickerVisible: Boolean,
+    alertsFilterPickerVisible: Boolean,
+    notificationsActiveGroup: NotificationGroup,
+    exploreActiveSection: ExploreSection,
+    sharedState: MainScreenSharedState,
+    onDismissOverlay: () -> Unit,
+    onDrawerDestinationClick: (DrawerScreenDestination) -> Unit,
+    accountSwitcherCallbacks: AccountSwitcherCallbacks,
+    navController: NavController,
+    onTabChanged: (PrimalTopLevelDestination) -> Unit,
+) {
+    PrimalOverlay(
+        visible = accountDrawerVisible,
+        onDismiss = onDismissOverlay,
+    ) {
+        PrimalDrawer(
+            onDismiss = onDismissOverlay,
+            onDrawerDestinationClick = onDrawerDestinationClick,
+            onQrCodeClick = { navController.navigateToProfileQrCodeViewer() },
+            accountSwitcherCallbacks = accountSwitcherCallbacks,
+        )
+    }
+
+    val homeActiveFeed = sharedState.homeActiveFeed.value
+    if (homeActiveFeed != null) {
+        PrimalOverlay(
+            visible = feedPickerVisible,
+            onDismiss = onDismissOverlay,
+        ) {
+            FeedListOverlayContent(
+                activeFeed = homeActiveFeed,
+                feedSpecKind = FeedSpecKind.Notes,
+                onFeedClick = { feed ->
+                    onDismissOverlay()
+                    sharedState.homeScrollToFeed.value = feed
+                },
+                onDismiss = onDismissOverlay,
+                onGoToWallet = { onTabChanged(PrimalTopLevelDestination.Wallet) },
+                onEditAdvancedSearchFeedClick = { feedSpec ->
+                    onDismissOverlay()
+                    navController.navigateToAdvancedSearch(editingFeedSpec = feedSpec)
+                },
+            )
+        }
+    }
+
+    val readsActiveFeed = sharedState.readsActiveFeed.value
+    if (readsActiveFeed != null) {
+        PrimalOverlay(
+            visible = readPickerVisible,
+            onDismiss = onDismissOverlay,
+        ) {
+            FeedListOverlayContent(
+                activeFeed = readsActiveFeed,
+                feedSpecKind = FeedSpecKind.Reads,
+                onFeedClick = { feed ->
+                    onDismissOverlay()
+                    sharedState.readsScrollToFeed.value = feed
+                },
+                onDismiss = onDismissOverlay,
+                onEditAdvancedSearchFeedClick = { feedSpec ->
+                    onDismissOverlay()
+                    navController.navigateToAdvancedSearch(editingFeedSpec = feedSpec)
+                },
+            )
+        }
+    }
+
+    PrimalOverlay(
+        visible = walletPickerVisible,
+        onDismiss = onDismissOverlay,
+    ) {
+        WalletPickerOverlayContent(
+            onDismiss = onDismissOverlay,
+        )
+    }
+
+    NotificationFilterPickerOverlay(
+        visible = alertsFilterPickerVisible,
+        activeGroup = notificationsActiveGroup,
+        notificationsPagerState = sharedState.notificationsPagerState,
+        onDismissOverlay = onDismissOverlay,
+    )
+
+    ExploreSectionPickerOverlay(
+        visible = exploreSectionPickerVisible,
+        activeSection = exploreActiveSection,
+        explorePagerState = sharedState.explorePagerState,
+        onDismissOverlay = onDismissOverlay,
+    )
+}
+
+@Composable
+private fun ExploreSectionPickerOverlay(
+    visible: Boolean,
+    activeSection: ExploreSection,
+    explorePagerState: PagerState,
+    onDismissOverlay: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    PrimalOverlay(visible = visible, onDismiss = onDismissOverlay) {
+        ExploreSectionListOverlayContent(
+            activeSection = activeSection,
+            onSectionClick = { section ->
+                scope.launch { explorePagerState.scrollToPage(section.ordinal) }
+                onDismissOverlay()
+            },
+            onDismiss = onDismissOverlay,
+        )
+    }
+}
+
+@Composable
+private fun NotificationFilterPickerOverlay(
+    visible: Boolean,
+    activeGroup: NotificationGroup,
+    notificationsPagerState: PagerState,
+    onDismissOverlay: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    PrimalOverlay(visible = visible, onDismiss = onDismissOverlay) {
+        NotificationFilterOverlayContent(
+            activeGroup = activeGroup,
+            onGroupClick = { group ->
+                scope.launch { notificationsPagerState.scrollToPage(group.ordinal) }
+                onDismissOverlay()
+            },
+            onDismiss = onDismissOverlay,
+        )
+    }
+}
+
+@Composable
+private fun MainScreenSharedEffects(mainViewModel: MainViewModel, navController: NavController) {
+    DisposableLifecycleObserverEffect(mainViewModel) {
+        when (it) {
+            Lifecycle.Event.ON_START -> {
+                mainViewModel.setEvent(MainContract.UiEvent.RequestUserDataUpdate)
+            }
+
+            else -> Unit
+        }
+    }
+
+    LaunchedEffect(mainViewModel, mainViewModel.effects) {
+        mainViewModel.effects.collect {
+            when (it) {
+                MainContract.SideEffect.AccountSwitched -> navController.navigateToHome()
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainScreenHomeEffects(noteFeedsViewModel: NoteFeedsViewModel) {
+    val streamState = LocalStreamState.current
+    LaunchedEffect(noteFeedsViewModel, noteFeedsViewModel.effects) {
+        noteFeedsViewModel.effects.collect {
+            when (it) {
+                is NoteFeedsContract.SideEffect.StartStream -> streamState.start(naddr = it.naddr)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WalletErrorHandler(navBackStackEntry: NavBackStackEntry, snackbarHostState: SnackbarHostState) {
+    val walletViewModel = hiltViewModel<WalletDashboardViewModel>(navBackStackEntry)
+    val walletState by walletViewModel.state.collectAsState()
+    val context = LocalContext.current
+    SnackbarErrorHandler(
+        error = walletState.error,
+        snackbarHostState = snackbarHostState,
+        errorMessageResolver = {
+            when (it) {
+                is WalletDashboardContract.UiState.DashboardError.InAppPurchaseNoticeError ->
+                    it.message ?: context.getString(R.string.app_generic_error)
+
+                is WalletDashboardContract.UiState.DashboardError.InAppPurchaseConfirmationFailed ->
+                    context.getString(R.string.wallet_in_app_purchase_error_confirmation_failed)
+
+                is WalletDashboardContract.UiState.DashboardError.WalletCreationFailed ->
+                    context.getString(R.string.wallet_dashboard_create_wallet_error)
+
+                is WalletDashboardContract.UiState.DashboardError.RefreshFailed ->
+                    context.getString(R.string.wallet_dashboard_refresh_error)
+            }
+        },
+        onErrorDismiss = { walletViewModel.setEvents(WalletDashboardContract.UiEvent.DismissError) },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun rememberHomeTopAppBarState(): TopAppBarState {
+    return remember {
+        TopAppBarState(
+            initialHeightOffsetLimit = -Float.MAX_VALUE,
+            initialHeightOffset = 0f,
+            initialContentOffset = 0f,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun rememberPerTabTopAppBarState(
+    activeTab: PrimalTopLevelDestination,
+    homeTopAppBarState: TopAppBarState,
+): TopAppBarState {
+    val readsTopAppBarState = rememberTopAppBarState()
+    val exploreTopAppBarState = rememberTopAppBarState()
+    val notificationsTopAppBarState = rememberTopAppBarState()
+    val walletTopAppBarState = rememberTopAppBarState()
+
+    return when (activeTab) {
+        PrimalTopLevelDestination.Feeds -> homeTopAppBarState
+        PrimalTopLevelDestination.Reads -> readsTopAppBarState
+        PrimalTopLevelDestination.Explore -> exploreTopAppBarState
+        PrimalTopLevelDestination.Alerts -> notificationsTopAppBarState
+        PrimalTopLevelDestination.Wallet -> walletTopAppBarState
+    }
+}
+
+private fun handleActiveDestinationClick(
+    activeTab: PrimalTopLevelDestination,
+    sharedState: MainScreenSharedState,
+    scope: kotlinx.coroutines.CoroutineScope,
+) {
+    val target = when (activeTab) {
+        PrimalTopLevelDestination.Feeds -> sharedState.homeShouldAnimateScrollToTop
+        PrimalTopLevelDestination.Reads -> sharedState.readsShouldAnimateScrollToTop
+        PrimalTopLevelDestination.Wallet -> sharedState.walletShouldAnimateScrollToTop
+        PrimalTopLevelDestination.Alerts -> sharedState.notificationsShouldAnimateScrollToTop
+        else -> null
+    }
+    target?.let {
+        it.value = true
+        scope.launch {
+            delay(500.milliseconds)
+            it.value = false
+        }
+    }
+}
+
+private enum class ActiveOverlay {
+    AccountDrawer,
+    AlertsFilter,
+    FeedPicker,
+    ReadPicker,
+    WalletPicker,
+    ExploreSectionPicker,
+}

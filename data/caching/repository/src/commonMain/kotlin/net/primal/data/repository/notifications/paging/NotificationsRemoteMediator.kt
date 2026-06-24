@@ -1,0 +1,185 @@
+package net.primal.data.repository.notifications.paging
+
+import androidx.paging.ExperimentalPagingApi
+import androidx.paging.LoadType
+import androidx.paging.PagingState
+import androidx.paging.RemoteMediator
+import io.github.aakira.napier.Napier
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlinx.coroutines.withContext
+import net.primal.core.caching.MediaCacher
+import net.primal.core.utils.coroutines.DispatcherProvider
+import net.primal.data.local.dao.notifications.Notification
+import net.primal.data.local.dao.notifications.NotificationData
+import net.primal.data.local.dao.notifications.NotificationGroupCrossRef
+import net.primal.data.local.db.PrimalDatabase
+import net.primal.data.remote.api.feed.model.FeedResponse
+import net.primal.data.remote.api.notifications.NotificationsApi
+import net.primal.data.remote.api.notifications.model.NotificationsRequestBody
+import net.primal.data.remote.api.notifications.model.wireToken
+import net.primal.data.repository.feed.processors.persistToDatabaseAsTransaction
+import net.primal.data.repository.mappers.remote.mapNotNullAsNotificationPO
+import net.primal.data.repository.mappers.remote.mapNotNullAsProfileStatsPO
+import net.primal.data.repository.mappers.remote.mapNotNullAsStreamDataPO
+import net.primal.data.repository.utils.cacheAvatarUrls
+import net.primal.domain.common.exception.NetworkException
+import net.primal.domain.notifications.NotificationGroup
+import net.primal.shared.data.local.db.withTransaction
+
+@ExperimentalPagingApi
+class NotificationsRemoteMediator(
+    private val userId: String,
+    private val group: NotificationGroup,
+    private val dispatcherProvider: DispatcherProvider,
+    private val notificationsApi: NotificationsApi,
+    private val database: PrimalDatabase,
+    private val mediaCacher: MediaCacher? = null,
+) : RemoteMediator<Int, Notification>() {
+
+    private var lastSeenTimestamp: Long = Instant.DISTANT_PAST.epochSeconds
+
+    private val lastRequests: MutableMap<LoadType, NotificationsRequestBody> = mutableMapOf()
+
+    fun updateLastSeenTimestamp(lastSeen: Instant) {
+        lastSeenTimestamp = lastSeen.epochSeconds
+    }
+
+    private suspend fun ensureLastSeenTimestamp() {
+        if (lastSeenTimestamp == Instant.DISTANT_PAST.epochSeconds) {
+            notificationsApi.getLastSeenTimestamp(userId = userId)?.let {
+                updateLastSeenTimestamp(lastSeen = it)
+            }
+        }
+    }
+
+    override suspend fun initialize(): InitializeAction {
+        val taggedCount = withContext(dispatcherProvider.io()) {
+            database.notificationGroupCrossRef().countByGroup(
+                ownerId = userId,
+                groupKey = group.name,
+            )
+        }
+        return if (taggedCount == 0) {
+            InitializeAction.LAUNCH_INITIAL_REFRESH
+        } else {
+            InitializeAction.SKIP_INITIAL_REFRESH
+        }
+    }
+
+    override suspend fun load(loadType: LoadType, state: PagingState<Int, Notification>): MediatorResult {
+        val timestamp: Long? = when (loadType) {
+            LoadType.REFRESH -> null
+            LoadType.PREPEND -> {
+                state.firstItemOrNull()?.data?.createdAt
+                    ?: withContext(dispatcherProvider.io()) {
+                        database.notifications().firstByGroup(ownerId = userId, groupKey = group.name)?.createdAt
+                    }
+                    ?: return MediatorResult.Success(endOfPaginationReached = true)
+            }
+
+            LoadType.APPEND -> {
+                state.lastItemOrNull()?.data?.createdAt
+                    ?: withContext(dispatcherProvider.io()) {
+                        database.notifications().lastByGroup(ownerId = userId, groupKey = group.name)?.createdAt
+                    }
+                    ?: return MediatorResult.Success(endOfPaginationReached = true)
+            }
+        }
+
+        if (timestamp == null && loadType != LoadType.REFRESH) {
+            return MediatorResult.Error(IllegalStateException("Remote key not found."))
+        }
+
+        val initialRequestBody = NotificationsRequestBody(
+            pubkey = userId,
+            userPubkey = userId,
+            limit = state.config.pageSize,
+            typeGroup = group.wireToken,
+        )
+
+        val requestBody = when (loadType) {
+            LoadType.REFRESH -> initialRequestBody
+            LoadType.PREPEND -> initialRequestBody.copy(
+                since = timestamp,
+                until = Clock.System.now().epochSeconds,
+            )
+
+            LoadType.APPEND -> initialRequestBody.copy(until = timestamp)
+        }
+
+        if (lastRequests[loadType] == requestBody) {
+            return MediatorResult.Success(endOfPaginationReached = true)
+        }
+
+        val response = try {
+            withContext(dispatcherProvider.io()) {
+                ensureLastSeenTimestamp()
+                notificationsApi.getNotifications(body = requestBody)
+            }
+        } catch (error: NetworkException) {
+            Napier.w(error) { "Failed to get notifications." }
+            return MediatorResult.Error(error)
+        }
+
+        mediaCacher?.cacheAvatarUrls(metadata = response.metadata, cdnResources = response.cdnResources)
+        lastRequests[loadType] = requestBody
+
+        val streamData = response.liveActivity.mapNotNullAsStreamDataPO()
+        val userProfileStats = response.primalUserProfileStats.mapNotNullAsProfileStatsPO()
+        val notifications = response.primalNotifications.mapNotNullAsNotificationPO()
+
+        withContext(dispatcherProvider.io()) {
+            FeedResponse(
+                paging = null,
+                metadata = response.metadata,
+                notes = response.notes,
+                articles = emptyList(),
+                reposts = emptyList(),
+                zaps = emptyList(),
+                referencedEvents = response.primalReferencedNotes,
+                primalEventStats = response.primalNoteStats,
+                primalEventUserStats = emptyList(),
+                cdnResources = response.cdnResources,
+                primalLinkPreviews = response.primalLinkPreviews,
+                primalRelayHints = response.primalRelayHints,
+                primalUserNames = response.primalUserNames,
+                primalLegendProfiles = response.primalLegendProfiles,
+                primalPremiumInfo = response.primalPremiumInfo,
+                blossomServers = response.blossomServers,
+                polls = response.polls,
+                pollResponses = response.pollResponses,
+                primalPollStats = response.primalPollStats,
+            ).persistToDatabaseAsTransaction(
+                userId = userId,
+                database = database,
+            )
+
+            val tagged = notifications.mapWithSeenAtTimestamps()
+
+            database.withTransaction {
+                database.profileStats().upsertAll(data = userProfileStats)
+                database.notifications().upsertAll(data = tagged)
+                database.notificationGroupCrossRef().insertAll(
+                    refs = tagged.map {
+                        NotificationGroupCrossRef(
+                            notificationId = it.notificationId,
+                            ownerId = userId,
+                            groupKey = group.name,
+                        )
+                    },
+                )
+                database.streams().upsertStreamData(data = streamData)
+            }
+        }
+
+        return MediatorResult.Success(endOfPaginationReached = false)
+    }
+
+    private fun List<NotificationData>.mapWithSeenAtTimestamps(): List<NotificationData> {
+        return this.map {
+            val seenAt = if (it.createdAt <= lastSeenTimestamp) lastSeenTimestamp else null
+            it.copy(seenGloballyAt = seenAt)
+        }
+    }
+}
