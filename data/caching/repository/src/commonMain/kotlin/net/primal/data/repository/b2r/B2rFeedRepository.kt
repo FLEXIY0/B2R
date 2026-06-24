@@ -2,6 +2,7 @@ package net.primal.data.repository.b2r
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import net.primal.core.utils.coroutines.DispatcherProvider
 import net.primal.data.local.dao.b2r.B2rFeedEntry
@@ -27,16 +28,18 @@ class B2rFeedRepository(
     private val p2pReplicationService: P2pReplicationService,
 ) {
 
-    /** Observe the local feed log. Pure local read — no network. */
-    fun observeFeed(limit: Int = DEFAULT_FEED_LIMIT): Flow<List<B2rFeedEntry>> =
+    /** Observe the local feed log as UI posts. Pure local read — no network. */
+    fun observeFeed(limit: Int = DEFAULT_FEED_LIMIT): Flow<List<B2rPost>> =
         database.b2rFeed()
             .observeFeed(limit = limit)
+            .map { entries -> entries.map { it.toB2rPost() } }
             .flowOn(dispatcherProvider.io())
 
-    /** Observe a single author's log, ordered by their sequence index. */
-    fun observeAuthorFeed(authorPubkey: String): Flow<List<B2rFeedEntry>> =
+    /** Observe a single author's log as UI posts, ordered by their sequence index. */
+    fun observeAuthorFeed(authorPubkey: String): Flow<List<B2rPost>> =
         database.b2rFeed()
             .observeAuthorFeed(authorPubkey = authorPubkey)
+            .map { entries -> entries.map { it.toB2rPost() } }
             .flowOn(dispatcherProvider.io())
 
     /**
@@ -59,3 +62,12 @@ class B2rFeedRepository(
         const val NO_ENTRIES_WATERMARK = -1L
     }
 }
+
+private fun B2rFeedEntry.toB2rPost() =
+    B2rPost(
+        eventId = eventId,
+        authorPubkey = authorPubkey,
+        sequenceId = sequenceId,
+        content = content,
+        createdAt = createdAt,
+    )

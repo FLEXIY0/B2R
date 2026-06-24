@@ -90,8 +90,12 @@
         `NoOpP2pReplicationService`) — репозиторий теперь инжектируемый.
   - [x] Hilt-провайдер `provideB2rFeedRepository()` (`CachingRepositoriesModule`,
         `@Singleton`) — `B2rFeedRepository` инжектируется в любой ViewModel.
-  - [ ] *(остаётся)* Переключить существующий UI/`FeedRepositoryImpl` на
-        делегирование в `B2rFeedRepository`.
+  - [x] **Point 2**: UI-слой делегирует в b2r — `B2rPost` (публичная модель,
+        Room-entity не течёт в `:app`), `B2rFeedRepository.observeFeed()` →
+        `Flow<List<B2rPost>>`, `B2rFeedViewModel` (Hilt) рендерит локальный лог +
+        `syncWithPeers()` дёргает P2P.
+  - [ ] *(остаётся)* Compose-экран, привязанный к `B2rFeedViewModel.state`;
+        опционально — переключение основного Primal-feed на эти данные.
 - [~] **2.2 Ключи профиля** — *в работе*
   - [x] `B2rKeyFormatter` (`:core:utils`): display-only `npub…`↔`b2r_pub…`
         (без смены bech32-HRP — `_` невалиден в HRP и сломал бы декод/подписи).
