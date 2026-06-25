@@ -75,3 +75,59 @@ jobs:
 
       - name: Compile AOSP debug (verify vivisection compiles)
         run: ./gradlew compileAospDebugKotlin --stacktrace
+
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate placeholder google-services.json
+        run: |
+          mkdir -p app/src/aosp app/src/google
+          cat > /tmp/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "b2r-placeholder",
+              "storage_bucket": "b2r-placeholder.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                  "android_client_info": { "package_name": "net.primal.android" }
+                },
+                "oauth_client": [],
+                "api_key": [ { "current_key": "placeholderplaceholderplaceholder1234" } ],
+                "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+          cp /tmp/google-services.json app/src/aosp/google-services.json
+          cp /tmp/google-services.json app/src/google/google-services.json
+
+      - name: Assemble AOSP debug APK
+        run: ./gradlew assembleAospDebug --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: b2r-aosp-debug-apk
+          path: app/build/outputs/apk/aosp/debug/*.apk
+          if-no-files-found: error
+
