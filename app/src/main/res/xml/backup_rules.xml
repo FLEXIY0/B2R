@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<full-backup-content>
-    <exclude domain="database" path="primal.db"/>
-    <exclude domain="file" path="datastore/credentials.json"/>
-    <exclude domain="file" path="datastore/accounts.json"/>
-    <exclude domain="file" path="datastore/active_account.txt"/>
-</full-backup-content>

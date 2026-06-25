@@ -1,421 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<!--
+  ~ Copyright 2020 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
 
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.READ_CLIPBOARD" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32"
-        tools:node="remove" />
-    <uses-permission
-        android:name="android.permission.READ_PHONE_STATE"
-        tools:node="remove" />
-
-    <uses-feature
-        android:name="android.hardware.camera.any"
-        android:required="false" />
-
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-
-            <category android:name="android.intent.category.BROWSABLE" />
-
-            <data android:scheme="nostrsigner" />
-        </intent>
-    </queries>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
-        android:name=".PrimalApp"
-        android:allowBackup="false"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
+        android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@style/Theme.App.Starting"
-        android:usesCleartextTraffic="true"
-        tools:replace="android:allowBackup"
-        tools:targetApi="33">
-
-        <receiver
-            android:name=".core.receiver.EndSessionReceiver"
-            android:exported="false" />
-
-        <receiver
-            android:name=".core.receiver.StopNwcServiceReceiver"
-            android:exported="false" />
+        android:theme="@style/Theme.Jetchat.NoActionBar">
 
         <activity
-            android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|layoutDirection|screenLayout|smallestScreenSize"
-            android:exported="true"
-            android:supportsPictureInPicture="true"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="live"
-                    android:scheme="primal" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="nostrconnect" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="primalconnect" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="signer"
-                    android:scheme="primal" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Home">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="https" />
-                <data android:host="primal.net" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Home">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/home"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Reads">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/reads"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Notifications">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/notifications"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Explore">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/explore"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal DMs">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/dms"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Bookmarks">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/bookmarks"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Premium">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/premium"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Legends">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/legends"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Note">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/e/"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Article">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/a/"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Article">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/.+/.+"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Profile">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/p/"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Profile">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/profile/"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Primal Profile">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/.+"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter
-                android:autoVerify="true"
-                android:label="Advanced Search">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data
-                    android:host="primal.net"
-                    android:pathPrefix="/search/"
-                    android:scheme="https" />
-            </intent-filter>
-            <intent-filter android:label="Wallet Connect">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="nostr+walletconnect" />
-                <data android:scheme="nostrwalletconnect" />
-            </intent-filter>
-            <intent-filter android:label="Primal Wallet Connect">
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="nostrnwc" />
-                <data android:scheme="nostrnwc+primal" />
-                <data android:host="connect" />
-            </intent-filter>
-            <intent-filter android:label="Share in a Note">
-                <action android:name="android.intent.action.SEND" />
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-
-                <data android:mimeType="image/*" />
-                <data android:mimeType="video/*" />
-            </intent-filter>
-        </activity>
-
-        <!-- b2r fork: self-contained entry point (global feed + private chats). -->
-        <activity
-            android:name=".b2r.B2rActivity"
-            android:configChanges="orientation|screenSize|layoutDirection|screenLayout|smallestScreenSize"
-            android:exported="true"
-            android:label="b2r"
-            android:windowSoftInputMode="adjustResize">
+            android:name=".NavActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".signer.provider.SignerActivity"
-            android:configChanges="orientation|screenSize|layoutDirection|screenLayout|smallestScreenSize"
-            android:exported="true"
-            android:launchMode="singleTop"
-            android:taskAffinity="net.primal.android.signer"
-            android:excludeFromRecents="true"
-            android:theme="@style/TransparentBottomSheetTheme"
-            android:windowSoftInputMode="adjustResize">
+        <receiver android:name=".widget.WidgetReceiver"
+            android:exported="true">
             <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="nostrsigner" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
-        </activity>
-
-        <service
-            android:name=".core.service.PrimalMediaSessionService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback">
-            <intent-filter>
-                <action android:name="androidx.media3.session.MediaSessionService" />
-            </intent-filter>
-        </service>
-
-        <service
-            android:name=".core.service.PrimalRemoteSignerService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Run a foreground service to keep remote signer operational." />
-        </service>
-
-        <service
-            android:name=".core.service.PrimalNwcService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Run a foreground service for NWC wallet connections." />
-        </service>
-
-        <provider
-            android:name=".signer.provider.LocalSignerContentProvider"
-            android:authorities="${applicationId}.PING;${applicationId}.SIGN_MESSAGE;${applicationId}.SIGN_EVENT;${applicationId}.NIP04_ENCRYPT;${applicationId}.NIP04_DECRYPT;${applicationId}.NIP44_ENCRYPT;${applicationId}.NIP44_DECRYPT;${applicationId}.GET_PUBLIC_KEY;${applicationId}.DECRYPT_ZAP_EVENT"
-            android:exported="true"
-            tools:ignore="ExportedContentProvider" />
-
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.provider"
-            android:exported="false"
-            android:grantUriPermissions="true">
             <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/provider_paths" />
-        </provider>
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_unread_messages_info" />
+        </receiver>
     </application>
-
 </manifest>

@@ -1,1 +1,0 @@
-Primal's Android app for Nostr

@@ -1,236 +1,104 @@
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
-<a name="readme-top"></a>
-<!--
-*** Thanks for checking out the Best-README-Template. If you have a suggestion
-*** that would make this better, please fork the repo and create a pull request
-*** or simply open an issue with the tag "enhancement".
-*** Don't forget to give the project a star!
-*** Thanks again! Now go create something AMAZING! :D
--->
+<img src="screenshots/jetchatlogo.png"/>
+
+# Jetchat sample
+
+Jetchat is a sample chat app built with [Jetpack Compose][compose].
+
+To try out this sample app, use the latest stable version
+of [Android Studio](https://developer.android.com/studio).
+You can clone this repository or import the
+project from Android Studio following the steps
+[here](https://developer.android.com/jetpack/compose/setup#sample).
+
+This sample showcases:
+
+* UI state management
+* Integration with Architecture Components: Navigation, Fragments, ViewModel
+* Back button handling
+* Text Input and focus management
+* Multiple types of animations and transitions
+* Saved state across configuration changes
+* Material Design 3 theming and Material You dynamic color
+* UI tests
+
+## Screenshots
+
+<img src="screenshots/screenshots.png"/>
+
+<img src="screenshots/widget.png" width="300"/>
+
+<img src="screenshots/widget_discoverability.png" width="300"/>
+
+### Status: 🚧 In progress
+
+Jetchat is still in under development, and some features are not yet implemented.
+
+## Features
+
+### UI State management
+The [ConversationContent](app/src/main/java/com/example/compose/jetchat/conversation/Conversation.kt) composable is the entry point to this screen and takes a [ConversationUiState](app/src/main/java/com/example/compose/jetchat/conversation/ConversationUiState.kt) that defines the data to be displayed. This doesn't mean all the state is served from a single point: composables can have their own state too. For an example, see `scrollState` in [ConversationContent](app/src/main/java/com/example/compose/jetchat/conversation/Conversation.kt) or `currentInputSelector` in [UserInput](app/src/main/java/com/example/compose/jetchat/conversation/UserInput.kt)
+
+### Architecture Components
+The [ProfileFragment](app/src/main/java/com/example/compose/jetchat/profile/ProfileFragment.kt) shows how to pass data between fragments with the [Navigation component](https://developer.android.com/guide/navigation) and observe state from a
+[ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel), served via [LiveData](https://developer.android.com/topic/libraries/architecture/livedata).
+
+### Back button handling
+When the Emoji selector is shown, pressing back in the app closes it, intercepting any navigation events. The implementation can be found in [UserInput](app/src/main/java/com/example/compose/jetchat/conversation/UserInput.kt).
+
+### Text Input and focus management
+When the Emoji panel is shown the keyboard must be hidden and vice versa. This is achieved with a combination of the [FocusRequester](https://developer.android.com/reference/kotlin/androidx/compose/ui/focus/FocusRequester) and [onFocusChanged](https://developer.android.com/reference/kotlin/androidx/compose/ui/focus/package-summary#(androidx.compose.ui.Modifier).onFocusChanged(kotlin.Function1)) APIs.
+
+### Multiple types of animations and transitions
+This sample uses animations ranging from simple `AnimatedVisibility` in [FunctionalityNotAvailablePanel](app/src/main/java/com/example/compose/jetchat/conversation/UserInput.kt) to choreographed transitions found in the [FloatingActionButton](https://material.io/develop/android/components/floating-action-button) of the Profile screen and implemented in [AnimatingFabContent](app/src/main/java/com/example/compose/jetchat/conversation/UserInput.kt)
+
+### Edge-to-edge UI with synchronized IME transitions
+This sample is laid out [edge-to-edge](https://medium.com/androiddevelopers/gesture-navigation-going-edge-to-edge-812f62e4e83e), drawing its content behind the system bars for a more immersive look.
+
+The sample also supports synchronized IME transitions when running on API 30+ devices. See the use of `Modifier.navigationBarsPadding().imePadding()` in [ConversationContent](app/src/main/java/com/example/compose/jetchat/conversation/UserInput.kt).
+
+### Saved state across configuration changes
+Some composable state survives activity or process recreation, like `currentInputSelector` in [UserInput](app/src/main/java/com/example/compose/jetchat/conversation/UserInput.kt).
+
+### Material Design 3 theming and Material You dynamic color
+Jetchat follows the [Material Design 3](https://m3.material.io) principles and uses the `MaterialTheme` composable and M3 components. On Android 12+ Jetchat supports Material You dynamic color, which extracts a custom color scheme from the device wallpaper. Jetchat uses a custom, branded color scheme as a fallback. It also implements custom typography using the Karla and Montserrat font families.
+
+### Nested scrolling interop
+Jetchat contains an example of how to use [`rememberNestedScrollInteropConnection()`](https://developer.android.com/reference/kotlin/androidx/compose/ui/platform/package-summary#rememberNestedScrollInteropConnection()) to achieve successful nested scroll interop between a View parent that implements `androidx.core.view.NestedScrollingParent3` and a Compose child. The example used here is a combination of a View parent `CoordinatorLayout` and a nested, Compose child `BoxWithConstraints` in [ProfileFragment](app/src/main/java/com/example/compose/jetchat/profile/ProfileFragment.kt). 
+
+### UI tests
+In [androidTest](app/src/androidTest/java/com/example/compose/jetchat) you'll find a suite of UI tests that showcase interesting patterns in Compose:
+
+#### [ConversationTest](app/src/androidTest/java/com/example/compose/jetchat/ConversationTest.kt)
+UI tests for the Conversation screen. Includes a test that checks the behavior of the app when dark mode changes.
+
+#### [NavigationTest](app/src/androidTest/java/com/example/compose/jetchat/NavigationTest.kt)
+Shows how to write tests that assert directly on the [Navigation Controller](https://developer.android.com/reference/androidx/navigation/NavController).
+
+#### [UserInputTest](app/src/androidTest/java/com/example/compose/jetchat/UserInputTest.kt)
+Checks that the user input composable, including extended controls, behave as expected showing and hiding the keyboard.
 
 
+## Known issues
+1. If the emoji selector is shown, clicking on the TextField can sometimes show both input methods.
+Tracked in https://issuetracker.google.com/164859446
 
-<!-- PROJECT SHIELDS -->
-<!--
-*** I'm using markdown "reference style" links for readability.
-*** Reference links are enclosed in brackets [ ] instead of parentheses ( ).
-*** See the bottom of this document for the declaration of the reference variables
-*** for contributors-url, forks-url, etc. This is an optional, concise syntax you may use.
-*** https://www.markdownguide.org/basic-syntax/#reference-style-links
--->
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
+2. There are only two profiles, clicking on anybody except "me" will show the same data.
 
-
-
-<!-- PROJECT LOGO -->
-<!--suppress ALL -->
-
-<br />
-<div align="center">
-  <a href="https://github.com/PrimalHQ/primal-android-app">
-    <img src="https://primal.net/assets/logo-d368885b.svg" alt="Logo" width="80" height="80">
-  </a>
-
-<h3 align="center">Primal</h3>
-
-  <p align="center">
-    A Nostr social client with a built-in Bitcoin Lightning wallet. Featuring easy onboarding, a fast & snappy
-    UI, long-form Reads, custom feeds, advanced search, and zaps.
-    <br />
-    <a href="https://primal.net"><strong>Explore Primal »</strong></a>
-    <br />
-    <br />
-    <a href="https://play.google.com/store/apps/details?id=net.primal.android">Get it on Google Play</a>
-    ·
-    <a href="https://github.com/PrimalHQ/primal-android-app/issues">Report Bug</a>
-    ·
-    <a href="https://github.com/PrimalHQ/primal-android-app/issues">Request Feature</a>
-  </p>
-</div>
-
-
-
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
-    </li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-      </ul>
-        <li><a href="#building">Building</a></li>
-        <ul>
-            <li><a href="#debug">Debug</a></li>
-            <li><a href="#release">Release</a></li>
-        </ul>
-    </li>
-    <li>
-      <a href="#installing">Installing</a>
-      <ul>
-        <li><a href="#debug-builds">Debug builds</a></li>
-        <li><a href="#release-builds">Release builds</a></li>
-      </ul>
-    </li>
-    <li><a href="#development">Development</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
-  </ol>
-</details>
-
-
-
-<!-- ABOUT THE PROJECT -->
-## About The Project
-
-<div align="center" style="display: flex; justify-content: center; gap: 21px;">
-    <img src="https://raw.githubusercontent.com/PrimalHQ/primal-android-app/main/docs/screenshots/feeds.png" alt="Primal Feeds Screenshot" width="200px">
-    <img src="https://raw.githubusercontent.com/PrimalHQ/primal-android-app/main/docs/screenshots/reads.png" alt="Primal Reads Screenshot" width="200px">
-    <img src="https://raw.githubusercontent.com/PrimalHQ/primal-android-app/main/docs/screenshots/wallet.png" alt="Primal Wallet Screenshot" width="200px">
-    <img src="https://raw.githubusercontent.com/PrimalHQ/primal-android-app/main/docs/screenshots/explore.png" alt="Primal Explore Screenshot" width="200px">
-</div>
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-### Built With
-
-[![Kotlin][Kotlin]][Kotlin-url]
-[![Jetpack Compose][Compose]][Compose-url]
-[![Kotlin Multiplatform][KMP]][KMP-url]
-[![Android Studio][AndroidStudio]][AndroidStudio-url]
-
-Multi-module app built with **Kotlin Multiplatform**, **Jetpack Compose**, **Room** (SQLCipher), and **Hilt**,
-following an MVI + Clean Architecture approach.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- GETTING STARTED -->
-## Getting Started
-
-### Prerequisites
-
-This project requires the following pre-requisites:
-- Java 21;
-- Android SDK (compileSdk 36);
-- Android Studio (latest stable, AGP 8.13+, Kotlin 2.2.x);
-- Android 8.0+ (API 26) device or emulator;
-
-The app ships in two product flavors (`aosp` and `google`), each with `debug`, `altRelease`, and `playRelease`
-build types — giving variants such as `aospDebug`, `aospAltRelease`, and `googlePlayRelease`.
-
-## Building
-### Debug
-To build debug builds no extra configuration is required, just execute `./gradlew :app:assembleAospDebug`
-(or `:app:assembleGoogleDebug`) or run in Android Studio.
-
-### Release
-To build release builds you will need to create `config.properties` file in the project root directory.
-Following properties in `config.properties` are **MANDATORY** for any release build:
-```properties
-localStorage.keyAlias={KeystoreAliasForEncryption}
-```
-If you want to build the release build with your own certificate you can use `googlePlayRelease` or `aospAltRelease`
-build variant which will read the certificate details from following properties in `config.properties`:
-```properties
-{signingConfigName}.storeFile={PathToYourCertificate}
-{signingConfigName}.storePassword={CertificatePassword}
-{signingConfigName}.keyAlias={YourAlias}
-{signingConfigName}.keyPassword={AliasPassword}
-```
-`{signingConfigName}` should be replaced with `playStore` or `alternative`.
-
-## Installing
-Attach your device to the computer or start your emulator and install debug or release build as described below.
-
-### Debug builds
-To install debug build execute `./gradlew :app:installAospDebug` or run a `debug` build variant in Android Studio.
-Please note that debug builds do not use encryption when storing sensitive information and that the performance is
-significantly slower compared to release builds.
-
-### Release builds
-To install release build execute `./gradlew installAospAltRelease` or `./gradlew installGooglePlayRelease`, or
-run in AndroidStudio. Please note that `googlePlayRelease` and `aospAltRelease` build variants require
-`config.properties` configured with mandatory properties. If no certificate properties are provided it fallbacks
-to `debug` certificate.
-
-## Development
-The app is still under the development and changes are frequent. Breaking changes can and will happen in the future.
-
-<!-- CONTRIBUTING -->
-## Contributing
-
-Read more about contributions in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- LICENSE -->
 ## License
+```
+Copyright 2020 The Android Open Source Project
 
-Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+    https://www.apache.org/licenses/LICENSE-2.0
 
-<!-- CONTACT -->
-## Contact
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
 
-For help with Primal:
-
-- 🌐 Website — [primal.net](https://primal.net)
-- ✉️ Email — [support@primal.net](mailto:support@primal.net)
-- 🐛 Report a bug — [GitHub Issues](https://github.com/PrimalHQ/primal-android-app/issues)
-- 💡 Request a feature — [GitHub Issues](https://github.com/PrimalHQ/primal-android-app/issues)
-
-Developed by [Appollo41](https://appollo41.com), a software development studio.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- ACKNOWLEDGMENTS -->
-## Acknowledgments
-
-* [Quartz](https://github.com/vitorpamplona/quartz) — Nostr event & NIP-04/NIP-44 crypto
-* [Breez SDK](https://breez.technology) — Spark self-custodial Lightning wallet
-* [NostrPostr](https://github.com/Giszmo/NostrPostr)
-* [Acinq](https://acinq.co)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
-
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/PrimalHQ/primal-android-app.svg?style=for-the-badge
-[contributors-url]: https://github.com/PrimalHQ/primal-android-app/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/PrimalHQ/primal-android-app.svg?style=for-the-badge
-[forks-url]: https://github.com/PrimalHQ/primal-android-app/network/members
-[stars-shield]: https://img.shields.io/github/stars/PrimalHQ/primal-android-app.svg?style=for-the-badge
-[stars-url]: https://github.com/PrimalHQ/primal-android-app/stargazers
-[issues-shield]: https://img.shields.io/github/issues/PrimalHQ/primal-android-app.svg?style=for-the-badge
-[issues-url]: https://github.com/PrimalHQ/primal-android-app/issues
-[license-shield]: https://img.shields.io/github/license/PrimalHQ/primal-android-app.svg?style=for-the-badge
-[license-url]: https://github.com/PrimalHQ/primal-android-app/blob/main/LICENSE
-[Kotlin]: https://img.shields.io/badge/kotlin-000000?style=for-the-badge&logo=kotlin&logoColor=white
-[Kotlin-url]: https://kotlinlang.org
-[Compose]: https://img.shields.io/badge/jetpack%20compose-000000?style=for-the-badge&logo=jetpackcompose&logoColor=white
-[Compose-url]: https://developer.android.com/jetpack/compose
-[KMP]: https://img.shields.io/badge/kotlin%20multiplatform-000000?style=for-the-badge&logo=kotlin&logoColor=white
-[KMP-url]: https://kotlinlang.org/docs/multiplatform.html
-[AndroidStudio]: https://img.shields.io/badge/androidstudio-000000?style=for-the-badge&logo=androidstudio&logoColor=white
-[AndroidStudio-url]: https://developer.android.com/studio
+[compose]: https://developer.android.com/jetpack/compose

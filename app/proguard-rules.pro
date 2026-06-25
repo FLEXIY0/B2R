@@ -20,103 +20,19 @@
 # hide the original source file name.
 -renamesourcefileattribute SourceFile
 
-# Avoid class/method name obfuscation for your own code
--keepnames class net.primal.** { *; }
+# Repackage classes into the top-level.
+-repackageclasses
 
--keep class fr.acinq.secp256k1.** { *; }
+# This is generated automatically by the Android Gradle plugin.
+-dontwarn org.bouncycastle.jsse.BCSSLParameters
+-dontwarn org.bouncycastle.jsse.BCSSLSocket
+-dontwarn org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
+-dontwarn org.conscrypt.Conscrypt$Version
+-dontwarn org.conscrypt.Conscrypt
+-dontwarn org.conscrypt.ConscryptHostnameVerifier
+-dontwarn org.openjsse.javax.net.ssl.SSLParameters
+-dontwarn org.openjsse.javax.net.ssl.SSLSocket
+-dontwarn org.openjsse.net.ssl.OpenJSSE
 
--keep class net.zetetic.** { *; }
 
-# BicoinJ-Core
--dontwarn org.slf4j.impl.StaticLoggerBinder
-
-
-############
-# Retrofit #
-############
-
-# Retrofit does reflection on generic parameters. InnerClasses is required to use Signature and
-# EnclosingMethod is required to use InnerClasses.
--keepattributes Signature, InnerClasses, EnclosingMethod
-
-# Retrofit does reflection on method and parameter annotations.
--keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
-
-# Keep annotation default values (e.g., retrofit2.http.Field.encoded).
--keepattributes AnnotationDefault
-
-# Retain service method parameters when optimizing.
--keepclassmembers,allowshrinking,allowobfuscation interface * {
-    @retrofit2.http.* <methods>;
-}
-
-# Ignore annotation used for build tooling.
--dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
-
-# Ignore JSR 305 annotations for embedding nullability information.
--dontwarn javax.annotation.**
-
-# Guarded by a NoClassDefFoundError try/catch and only used when on the classpath.
--dontwarn kotlin.Unit
-
-# Top-level functions that can only be used by Kotlin.
--dontwarn retrofit2.KotlinExtensions
--dontwarn retrofit2.KotlinExtensions$*
-
-# With R8 full mode, it sees no subtypes of Retrofit interfaces since they are created with a Proxy
-# and replaces all potential values with null. Explicitly keeping the interfaces prevents this.
--if interface * { @retrofit2.http.* <methods>; }
--keep,allowobfuscation interface <1>
-
-# Keep inherited services.
--if interface * { @retrofit2.http.* <methods>; }
--keep,allowobfuscation interface * extends <1>
-
-# With R8 full mode generic signatures are stripped for classes that are not
-# kept. Suspend functions are wrapped in continuations where the type argument
-# is used.
--keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
-
-# R8 full mode strips generic signatures from return types if not kept.
--if interface * { @retrofit2.http.* public *** *(...); }
--keep,allowoptimization,allowshrinking,allowobfuscation class <3>
-
-# With R8 full mode generic signatures are stripped for classes that are not kept.
--keep,allowobfuscation,allowshrinking class retrofit2.Response
-
-# OkHttp
--dontwarn okhttp3.internal.**
--keep class okhttp3.internal.** { *; }
--keepnames class okhttp3.internal.** { *; }
-
-# OkHttp EventSource
--keep class okhttp3.internal.sse.** { *; }
-
-####################################
-# Cronet / Play Services Cronet    #
-####################################
-
-# Keep Cronet provider classes for runtime discovery
--keep class org.chromium.net.** { *; }
--keep class com.google.android.gms.net.** { *; }
-
-####################################################
-# Protobuf Lite (required by Cronet HttpFlagsLoader) #
-####################################################
-
--keep class com.google.protobuf.** { *; }
--keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
-    <fields>;
-    <methods>;
-}
-
-# Keep protobuf enums
--keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite$ExtendableMessage {
-    <fields>;
-}
-
-# Keep the default instance methods
--keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
-    public static *** getDefaultInstance();
-    public static *** parser();
-}
+-keep class androidx.compose.ui.platform.AndroidCompositionLocals_androidKt { *; }
