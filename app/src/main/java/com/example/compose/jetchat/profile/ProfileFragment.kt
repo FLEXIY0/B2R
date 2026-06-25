@@ -109,6 +109,7 @@ class ProfileFragment : Fragment() {
                         ProfileScreen(
                             userData = userData!!,
                             nestedScrollInteropConnection = nestedScrollInteropConnection,
+                            onSaveName = { viewModel.updateNickname(it) },
                         )
                     }
                 }

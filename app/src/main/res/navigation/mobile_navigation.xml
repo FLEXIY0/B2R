@@ -28,7 +28,13 @@
     <fragment
         android:id="@+id/nav_home"
         android:name="com.example.compose.jetchat.conversation.ConversationFragment"
-        android:label="Conversation" />
+        android:label="Conversation">
+        <argument
+            android:name="peerKey"
+            app:argType="string"
+            app:nullable="true"
+            android:defaultValue="@null" />
+    </fragment>
 
     <fragment
         android:id="@+id/nav_profile"

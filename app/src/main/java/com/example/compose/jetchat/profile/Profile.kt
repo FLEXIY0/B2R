@@ -33,13 +33,16 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -74,10 +77,23 @@ import com.example.compose.jetchat.theme.JetchatTheme
 fun ProfileScreen(
     userData: ProfileScreenState,
     nestedScrollInteropConnection: NestedScrollConnection = rememberNestedScrollInteropConnection(),
+    onSaveName: (String) -> Unit = {},
 ) {
     var functionalityNotAvailablePopupShown by remember { mutableStateOf(false) }
     if (functionalityNotAvailablePopupShown) {
         FunctionalityNotAvailablePopup { functionalityNotAvailablePopupShown = false }
+    }
+
+    var editingName by remember { mutableStateOf(false) }
+    if (editingName) {
+        EditNameDialog(
+            currentName = userData.name,
+            onDismiss = { editingName = false },
+            onConfirm = {
+                onSaveName(it)
+                editingName = false
+            },
+        )
     }
 
     val scrollState = rememberScrollState()
@@ -111,7 +127,9 @@ fun ProfileScreen(
                 .align(Alignment.BottomEnd)
                 // Offsets the FAB to compensate for CoordinatorLayout collapsing behaviour
                 .offset(y = ((-100).dp)),
-            onFabClicked = { functionalityNotAvailablePopupShown = true },
+            onFabClicked = {
+                if (userData.isMe()) editingName = true else functionalityNotAvailablePopupShown = true
+            },
         )
     }
 }
@@ -219,6 +237,32 @@ fun ProfileProperty(label: String, value: String, isLink: Boolean = false) {
             style = style,
         )
     }
+}
+
+@Composable
+private fun EditNameDialog(currentName: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var text by remember { mutableStateOf(currentName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Маскировка") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                label = { Text("Ваш ник") },
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(text) },
+                enabled = text.isNotBlank(),
+            ) { Text("Сохранить") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена") }
+        },
+    )
 }
 
 @Composable

@@ -22,13 +22,14 @@ class B2rFeedRepository(
 
     val posts: StateFlow<List<B2rPost>> = store.posts
 
-    suspend fun createPost(author: String, content: String): B2rPost = withContext(Dispatchers.IO) {
+    suspend fun createPost(author: String, authorName: String, content: String): B2rPost = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         val post = B2rPost(
             id = "$author:$now:${Random.nextInt(RANDOM_BOUND)}",
             author = author,
             content = content.trim(),
             createdAt = now,
+            authorName = authorName,
         )
         store.add(post)
         publishSnapshot()

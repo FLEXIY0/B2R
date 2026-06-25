@@ -17,7 +17,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     val posts: StateFlow<List<B2rPost>> = app.feedRepository.posts
     val myPubKey: String = app.identity.pubKey
-    val myDisplayKey: String = app.identity.displayKey
+    val myNickname: StateFlow<String> = app.identity.nickname
 
     private val _syncing = MutableStateFlow(false)
     val syncing: StateFlow<Boolean> = _syncing
@@ -28,7 +28,13 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
 
     fun publish(content: String) {
         if (content.isBlank()) return
-        viewModelScope.launch { app.feedRepository.createPost(app.identity.pubKey, content) }
+        viewModelScope.launch {
+            app.feedRepository.createPost(
+                author = app.identity.pubKey,
+                authorName = app.identity.nickname.value,
+                content = content,
+            )
+        }
     }
 
     fun refresh() {

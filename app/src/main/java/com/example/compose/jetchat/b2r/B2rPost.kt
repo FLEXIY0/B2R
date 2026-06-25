@@ -9,4 +9,6 @@ data class B2rPost(
     val author: String,
     val content: String,
     val createdAt: Long,
+    /** The author's display mask at publish time. Empty for legacy posts. */
+    val authorName: String = "",
 )

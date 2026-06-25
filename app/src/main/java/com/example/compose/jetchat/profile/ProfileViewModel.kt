@@ -16,32 +16,71 @@
 
 package com.example.compose.jetchat.profile
 
+import android.app.Application
 import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import com.example.compose.jetchat.data.colleagueProfile
-import com.example.compose.jetchat.data.meProfile
+import com.example.compose.jetchat.R
+import com.example.compose.jetchat.b2r.B2rApp
+import com.example.compose.jetchat.b2r.shortKeyLabel
 
-class ProfileViewModel : ViewModel() {
+/**
+ * b2r: backs the profile screen with the real local identity. The "me" profile is
+ * the device's own identity (its editable mask + key); any other id is shown as a
+ * read-only peer.
+ */
+class ProfileViewModel(application: Application) : AndroidViewModel(application) {
 
-    private var userId: String = ""
+    private val identity = (application as B2rApp).identity
+    private var userId: String = ME
 
     fun setUserId(newUserId: String?) {
-        if (newUserId != userId) {
-            userId = newUserId ?: meProfile.userId
-        }
-        // Workaround for simplicity
-        _userData.value = if (userId == meProfile.userId || userId == meProfile.displayName) {
-            meProfile
-        } else {
-            colleagueProfile
-        }
+        userId = newUserId ?: ME
+        emit()
     }
+
+    /** Persist a new mask for the local identity and refresh the screen. */
+    fun updateNickname(newName: String) {
+        identity.setNickname(newName)
+        emit()
+    }
+
+    private fun emit() {
+        _userData.value = if (userId == ME) meState() else peerState(userId)
+    }
+
+    private fun meState() = ProfileScreenState(
+        userId = ME,
+        photo = R.drawable.ali,
+        name = identity.nickname.value,
+        status = "Online",
+        displayName = identity.keyLabel,
+        position = "Ваш локальный профиль b2r",
+        twitter = "",
+        timeZone = null,
+        commonChannels = null,
+    )
+
+    private fun peerState(key: String) = ProfileScreenState(
+        userId = key,
+        photo = R.drawable.someone_else,
+        name = shortKeyLabel(key),
+        status = "Собеседник b2r",
+        displayName = key,
+        position = "Личный чат через брокер",
+        twitter = "",
+        timeZone = "",
+        commonChannels = "",
+    )
 
     private val _userData = MutableLiveData<ProfileScreenState>()
     val userData: LiveData<ProfileScreenState> = _userData
+
+    private companion object {
+        const val ME = "me"
+    }
 }
 
 @Immutable
@@ -56,5 +95,5 @@ data class ProfileScreenState(
     val timeZone: String?, // Null if me
     val commonChannels: String?, // Null if me
 ) {
-    fun isMe() = userId == meProfile.userId
+    fun isMe() = userId == "me"
 }
