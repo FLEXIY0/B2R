@@ -8,12 +8,14 @@ import android.view.ViewGroup.LayoutParams
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import androidx.compose.ui.platform.ComposeView
 import androidx.fragment.app.Fragment
-import androidx.navigation.findNavController
-import com.example.compose.jetchat.R
+import androidx.fragment.app.activityViewModels
+import com.example.compose.jetchat.MainViewModel
 import com.example.compose.jetchat.theme.JetchatTheme
 
 /** b2r: hosts the global feed screen (the app's home / "Лента" tab). */
 class FeedFragment : Fragment() {
+
+    private val activityViewModel: MainViewModel by activityViewModels()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
         ComposeView(inflater.context).apply {
@@ -21,7 +23,7 @@ class FeedFragment : Fragment() {
             setContent {
                 JetchatTheme {
                     FeedScreen(
-                        onOpenChat = { findNavController().navigate(R.id.nav_home) },
+                        onNavIconPressed = { activityViewModel.openDrawer() },
                     )
                 }
             }

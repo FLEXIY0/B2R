@@ -16,6 +16,7 @@ class FeedViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as B2rApp
 
     val posts: StateFlow<List<B2rPost>> = app.feedRepository.posts
+    val myPubKey: String = app.identity.pubKey
     val myDisplayKey: String = app.identity.displayKey
 
     private val _syncing = MutableStateFlow(false)

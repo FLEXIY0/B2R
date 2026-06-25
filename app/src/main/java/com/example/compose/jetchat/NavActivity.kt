@@ -61,7 +61,7 @@ class NavActivity : AppCompatActivity() {
                     val drawerOpen by viewModel.drawerShouldBeOpened
                         .collectAsStateWithLifecycle()
 
-                    var selectedMenu by remember { mutableStateOf("composers") }
+                    var selectedMenu by remember { mutableStateOf("feed") }
                     if (drawerOpen) {
                         // Open drawer and reset state in VM.
                         LaunchedEffect(Unit) {
@@ -80,7 +80,11 @@ class NavActivity : AppCompatActivity() {
                         drawerState = drawerState,
                         selectedMenu = selectedMenu,
                         onChatClicked = {
-                            findNavController().popBackStack(R.id.nav_home, false)
+                            val destination = if (it == "feed") R.id.nav_feed else R.id.nav_home
+                            val controller = findNavController()
+                            if (controller.currentDestination?.id != destination) {
+                                controller.navigate(destination)
+                            }
                             scope.launch {
                                 drawerState.close()
                             }
