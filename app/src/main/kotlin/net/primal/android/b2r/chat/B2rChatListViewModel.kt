@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.launch
-import net.primal.android.user.accounts.active.ActiveAccountStore
+import net.primal.android.b2r.identity.B2rIdentityStore
 import net.primal.data.repository.b2r.chat.B2rChatRepository
 import net.primal.data.repository.b2r.chat.B2rConversationPreview
 
@@ -19,7 +19,7 @@ import net.primal.data.repository.b2r.chat.B2rConversationPreview
 @HiltViewModel
 class B2rChatListViewModel @Inject constructor(
     private val chatRepository: B2rChatRepository,
-    private val activeAccountStore: ActiveAccountStore,
+    private val identityStore: B2rIdentityStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(UiState())
@@ -32,7 +32,7 @@ class B2rChatListViewModel @Inject constructor(
 
     private fun observeConversations() =
         viewModelScope.launch {
-            val me = activeAccountStore.activeUserId()
+            val me = identityStore.pubKey
             if (me.isBlank()) {
                 setState { copy(loading = false) }
                 return@launch

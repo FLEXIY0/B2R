@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.launch
-import net.primal.android.user.accounts.active.ActiveAccountStore
+import net.primal.android.b2r.identity.B2rIdentityStore
 import net.primal.data.repository.b2r.chat.B2rChatMessageUi
 import net.primal.data.repository.b2r.chat.B2rChatRepository
 
@@ -22,14 +22,15 @@ import net.primal.data.repository.b2r.chat.B2rChatRepository
 @HiltViewModel
 class B2rChatViewModel @Inject constructor(
     private val chatRepository: B2rChatRepository,
-    private val activeAccountStore: ActiveAccountStore,
+    private val identityStore: B2rIdentityStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
     private fun setState(reducer: UiState.() -> UiState) = _state.getAndUpdate { it.reducer() }
 
-    private val myPubkey: String get() = activeAccountStore.activeUserId()
+    private val myPubkey: String get() = identityStore.pubKey
+    private val myPrivkey: String get() = identityStore.privKey
     private var peerPubkey: String? = null
 
     /** Bind this view model to a conversation with [peerPubkey]. */
@@ -56,7 +57,7 @@ class B2rChatViewModel @Inject constructor(
             val peer = peerPubkey ?: return@launch
             if (me.isBlank()) return@launch
             setState { copy(syncing = true) }
-            runCatching { chatRepository.syncConversation(me, peer) }
+            runCatching { chatRepository.syncConversation(myPrivkey, me, peer) }
             setState { copy(syncing = false) }
         }
 
@@ -67,7 +68,7 @@ class B2rChatViewModel @Inject constructor(
             val peer = peerPubkey ?: return@launch
             if (me.isBlank() || text.isBlank()) return@launch
             setState { copy(sending = true) }
-            runCatching { chatRepository.sendMessage(me, peer, text) }
+            runCatching { chatRepository.sendMessage(myPrivkey, me, peer, text) }
             setState { copy(sending = false) }
         }
 

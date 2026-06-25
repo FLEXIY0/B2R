@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.launch
-import net.primal.android.user.accounts.active.ActiveAccountStore
+import net.primal.android.b2r.identity.B2rIdentityStore
 import net.primal.data.repository.b2r.B2rFeedRepository
 import net.primal.data.repository.b2r.B2rPost
 
@@ -22,7 +22,7 @@ import net.primal.data.repository.b2r.B2rPost
 @HiltViewModel
 class B2rFeedViewModel @Inject constructor(
     private val b2rFeedRepository: B2rFeedRepository,
-    private val activeAccountStore: ActiveAccountStore,
+    private val identityStore: B2rIdentityStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(UiState())
@@ -30,7 +30,7 @@ class B2rFeedViewModel @Inject constructor(
     private fun setState(reducer: UiState.() -> UiState) = _state.getAndUpdate { it.reducer() }
 
     init {
-        setState { copy(myPubkey = activeAccountStore.activeUserId()) }
+        setState { copy(myPubkey = identityStore.pubKey) }
         observeLocalFeed()
         refresh()
     }
@@ -53,7 +53,7 @@ class B2rFeedViewModel @Inject constructor(
     /** Append a post to the global feed under the active account's key. */
     fun publishPost(content: String) =
         viewModelScope.launch {
-            val author = activeAccountStore.activeUserId()
+            val author = identityStore.pubKey
             if (author.isBlank() || content.isBlank()) return@launch
             setState { copy(publishing = true) }
             runCatching { b2rFeedRepository.createPost(authorPubkey = author, content = content) }

@@ -125,17 +125,11 @@ object CachingRepositoriesModule {
     fun provideB2rFeedRepository(discoveryBroker: DiscoveryBroker): B2rFeedRepository =
         PrimalRepositoryFactory.createB2rFeedRepository(discoveryBroker = discoveryBroker)
 
-    // b2r fork: private 1:1 chat repository (shared broker + NIP-04 E2E encryption).
+    // b2r fork: private 1:1 chat repository (shared broker + b2r-key E2E encryption).
     @Provides
     @Singleton
-    fun provideB2rChatRepository(
-        discoveryBroker: DiscoveryBroker,
-        messageCipher: MessageCipher,
-    ): B2rChatRepository =
-        PrimalRepositoryFactory.createB2rChatRepository(
-            discoveryBroker = discoveryBroker,
-            messageCipher = messageCipher,
-        )
+    fun provideB2rChatRepository(discoveryBroker: DiscoveryBroker): B2rChatRepository =
+        PrimalRepositoryFactory.createB2rChatRepository(discoveryBroker = discoveryBroker)
 
     @Provides
     fun provideFeedsRepository(

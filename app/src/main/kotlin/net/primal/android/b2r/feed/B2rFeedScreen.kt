@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,7 +42,7 @@ fun B2rFeedScreen(
     val state by viewModel.state.collectAsState()
     var draft by remember { mutableStateOf(TextFieldValue("")) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+    Column(modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "b2r — общая лента",
@@ -52,6 +54,15 @@ fun B2rFeedScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        if (state.posts.isEmpty()) {
+            Text(
+                text = "Пока пусто. Напишите первый пост — его увидят все, у кого установлен b2r.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
+        }
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(state.posts) { post ->

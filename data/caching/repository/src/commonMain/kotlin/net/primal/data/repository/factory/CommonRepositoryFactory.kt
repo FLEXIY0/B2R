@@ -170,17 +170,14 @@ abstract class CommonRepositoryFactory {
 
     /**
      * b2r fork: private 1:1 chat repository. Reuses the shared discovery broker
-     * (per-conversation topic) and NIP-04 [MessageCipher] for end-to-end encryption.
+     * (per-conversation topic); messages are end-to-end encrypted with the
+     * device's b2r identity key (secp256k1 ECDH + AES) inside the repository.
      */
-    fun createB2rChatRepository(
-        discoveryBroker: DiscoveryBroker,
-        messageCipher: MessageCipher,
-    ): B2rChatRepository {
+    fun createB2rChatRepository(discoveryBroker: DiscoveryBroker): B2rChatRepository {
         return B2rChatRepository(
             database = resolveCachingDatabase(),
             dispatcherProvider = dispatcherProvider,
             discoveryBroker = discoveryBroker,
-            messageCipher = messageCipher,
         )
     }
 

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalStdlibApi::class, kotlin.io.encoding.ExperimentalEncodingApi::class)
+
 package net.primal.data.repository.b2r.chat
 
 import kotlin.random.Random
@@ -11,26 +13,25 @@ import net.primal.core.utils.coroutines.DispatcherProvider
 import net.primal.data.local.dao.b2r.B2rChatMessage
 import net.primal.data.local.db.PrimalDatabase
 import net.primal.data.repository.b2r.p2p.DiscoveryBroker
-import net.primal.domain.nostr.cryptography.MessageCipher
+import net.primal.domain.nostr.cryptography.utils.CryptoUtils
 
 /**
  * b2r fork: private 1:1 chat over the shared broker.
  *
  * "Find a person, write to them" — the conversation between two keys lives at an
  * opaque topic derived from both keys ([conversationIdOf]) and every message is
- * end-to-end encrypted (NIP-04, via [MessageCipher]) before it leaves the device.
- * Other peers on the same public broker only see ciphertext on a topic they
- * cannot attribute, so they are "limited by visibility". Locally we keep the
- * decrypted text for display.
+ * end-to-end encrypted (secp256k1 ECDH + AES, via [CryptoUtils]) before it leaves
+ * the device. Other peers on the same public broker only see ciphertext on a
+ * topic they cannot attribute. Locally we keep the decrypted text for display.
  *
- * Like the feed, a conversation is replicated as a retained snapshot merged with
+ * Uses the device's b2r identity key directly, so it works without any Primal
+ * login. A conversation is replicated as a retained snapshot merged with
  * union + last-write-wins.
  */
 class B2rChatRepository(
     private val database: PrimalDatabase,
     private val dispatcherProvider: DispatcherProvider,
     private val discoveryBroker: DiscoveryBroker,
-    private val messageCipher: MessageCipher,
 ) {
 
     /** Observe one conversation (oldest first) as UI messages. */
@@ -48,7 +49,12 @@ class B2rChatRepository(
             .flowOn(dispatcherProvider.io())
 
     /** Send a message to [peerPubkey]: store locally, then publish the encrypted conversation. */
-    suspend fun sendMessage(myPubkey: String, peerPubkey: String, text: String): B2rChatMessageUi =
+    suspend fun sendMessage(
+        myPrivkeyHex: String,
+        myPubkey: String,
+        peerPubkey: String,
+        text: String,
+    ): B2rChatMessageUi =
         withContext(dispatcherProvider.io()) {
             val now = Clock.System.now().toEpochMilliseconds()
             val message = B2rChatMessage(
@@ -62,12 +68,12 @@ class B2rChatRepository(
                 mine = true,
             )
             database.b2rChat().upsert(message)
-            publishConversation(myPubkey = myPubkey, peerPubkey = peerPubkey)
+            publishConversation(myPrivkeyHex = myPrivkeyHex, myPubkey = myPubkey, peerPubkey = peerPubkey)
             message.toUi()
         }
 
     /** Pull the latest conversation snapshot from the broker, decrypt and merge it. */
-    suspend fun syncConversation(myPubkey: String, peerPubkey: String) =
+    suspend fun syncConversation(myPrivkeyHex: String, myPubkey: String, peerPubkey: String) =
         withContext(dispatcherProvider.io()) {
             val conversationId = conversationIdOf(myPubkey, peerPubkey)
             val payload = try {
@@ -82,12 +88,14 @@ class B2rChatRepository(
                 return@withContext
             }
 
+            val privBytes = myPrivkeyHex.hexToByteArray()
+            val peerBytes = peerPubkey.hexToByteArray()
             val dao = database.b2rChat()
             val toWrite = incoming.mapNotNull { dto ->
                 val existing = dao.findById(dto.messageId)
                 if (existing != null && existing.modifiedAt >= dto.modifiedAt) return@mapNotNull null
                 val plaintext = try {
-                    messageCipher.decryptMessage(myPubkey, peerPubkey, dto.ciphertext)
+                    CryptoUtils.decrypt(dto.ciphertext, privBytes, peerBytes)
                 } catch (error: Exception) {
                     return@mapNotNull null
                 }
@@ -105,14 +113,16 @@ class B2rChatRepository(
             if (toWrite.isNotEmpty()) dao.upsertAll(toWrite)
         }
 
-    private suspend fun publishConversation(myPubkey: String, peerPubkey: String) {
+    private suspend fun publishConversation(myPrivkeyHex: String, myPubkey: String, peerPubkey: String) {
         val conversationId = conversationIdOf(myPubkey, peerPubkey)
         val messages = database.b2rChat().getConversation(conversationId)
         if (messages.isEmpty()) return
 
+        val privBytes = myPrivkeyHex.hexToByteArray()
+        val peerBytes = peerPubkey.hexToByteArray()
         val dtos = messages.mapNotNull { message ->
             val ciphertext = try {
-                messageCipher.encryptMessage(myPubkey, peerPubkey, message.content)
+                CryptoUtils.encrypt(message.content, privBytes, peerBytes)
             } catch (error: Exception) {
                 return@mapNotNull null
             }
