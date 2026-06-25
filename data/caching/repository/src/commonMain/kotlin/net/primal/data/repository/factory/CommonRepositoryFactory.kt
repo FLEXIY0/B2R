@@ -8,6 +8,7 @@ import net.primal.data.remote.factory.PrimalApiServiceFactory
 import net.primal.data.repository.UserDataCleanupRepositoryImpl
 import net.primal.data.repository.articles.ArticleRepositoryImpl
 import net.primal.data.repository.b2r.B2rFeedRepository
+import net.primal.data.repository.b2r.chat.B2rChatRepository
 import net.primal.data.repository.b2r.p2p.DiscoveryBroker
 import net.primal.data.repository.b2r.p2p.MqttP2pReplicationService
 import net.primal.data.repository.b2r.p2p.NoOpP2pReplicationService
@@ -164,6 +165,22 @@ abstract class CommonRepositoryFactory {
             database = resolveCachingDatabase(),
             dispatcherProvider = dispatcherProvider,
             p2pReplicationService = replicationService,
+        )
+    }
+
+    /**
+     * b2r fork: private 1:1 chat repository. Reuses the shared discovery broker
+     * (per-conversation topic) and NIP-04 [MessageCipher] for end-to-end encryption.
+     */
+    fun createB2rChatRepository(
+        discoveryBroker: DiscoveryBroker,
+        messageCipher: MessageCipher,
+    ): B2rChatRepository {
+        return B2rChatRepository(
+            database = resolveCachingDatabase(),
+            dispatcherProvider = dispatcherProvider,
+            discoveryBroker = discoveryBroker,
+            messageCipher = messageCipher,
         )
     }
 

@@ -11,6 +11,7 @@ import net.primal.core.caching.MediaCacher
 import net.primal.android.b2r.p2p.OkHttpMqttDiscoveryBroker
 import net.primal.core.networking.primal.PrimalApiClient
 import net.primal.data.repository.b2r.B2rFeedRepository
+import net.primal.data.repository.b2r.chat.B2rChatRepository
 import net.primal.data.repository.b2r.p2p.DiscoveryBroker
 import net.primal.data.repository.factory.PrimalRepositoryFactory
 import okhttp3.OkHttpClient
@@ -123,6 +124,18 @@ object CachingRepositoriesModule {
     @Singleton
     fun provideB2rFeedRepository(discoveryBroker: DiscoveryBroker): B2rFeedRepository =
         PrimalRepositoryFactory.createB2rFeedRepository(discoveryBroker = discoveryBroker)
+
+    // b2r fork: private 1:1 chat repository (shared broker + NIP-04 E2E encryption).
+    @Provides
+    @Singleton
+    fun provideB2rChatRepository(
+        discoveryBroker: DiscoveryBroker,
+        messageCipher: MessageCipher,
+    ): B2rChatRepository =
+        PrimalRepositoryFactory.createB2rChatRepository(
+            discoveryBroker = discoveryBroker,
+            messageCipher = messageCipher,
+        )
 
     @Provides
     fun provideFeedsRepository(

@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
 import androidx.room.TypeConverters
+import net.primal.data.local.dao.b2r.B2rChatMessage
+import net.primal.data.local.dao.b2r.B2rChatMessageDao
 import net.primal.data.local.dao.b2r.B2rFeedEntry
 import net.primal.data.local.dao.b2r.B2rFeedEntryDao
 import net.primal.data.local.dao.bookmarks.PublicBookmark
@@ -140,12 +142,13 @@ import net.primal.shared.data.local.serialization.ListsTypeConverters
         RecentSearch::class,
         // b2r fork (Sprint 1.4): local feed log table (LWW + tombstones).
         B2rFeedEntry::class,
+        // b2r fork: 1:1 chat messages (stored decrypted; encrypted on the wire).
+        B2rChatMessage::class,
     ],
-    // b2r fork: bumped from 34 to add the B2rFeedEntry table. Existing Nostr
-    // cache tables are retained for now and retired in Step 2 as repositories
-    // migrate onto the local log; runtime uses destructive migration (fork has
-    // no backward-compat requirement).
-    version = 35,
+    // b2r fork: bumped from 34 for the B2rFeedEntry table (35) and the
+    // B2rChatMessage table (36). Existing Nostr cache tables are retained for
+    // now; runtime uses destructive migration (fork has no backward-compat need).
+    version = 36,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -238,6 +241,9 @@ abstract class PrimalDatabase : RoomDatabase() {
 
     // b2r fork (Sprint 1.4): local feed log accessor.
     abstract fun b2rFeed(): B2rFeedEntryDao
+
+    // b2r fork: 1:1 chat messages accessor.
+    abstract fun b2rChat(): B2rChatMessageDao
 }
 
 // The Room compiler generates the `actual` implementations.
