@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -96,6 +97,10 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.coroutines.android)
+
+    // b2r engine: JSON storage + MQTT-over-WebSocket replication
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp3)
 
     implementation(libs.androidx.activity.compose)
 

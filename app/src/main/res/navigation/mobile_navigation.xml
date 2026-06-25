@@ -18,7 +18,12 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/mobile_navigation"
-    app:startDestination="@+id/nav_home">
+    app:startDestination="@+id/nav_feed">
+
+    <fragment
+        android:id="@+id/nav_feed"
+        android:name="com.example.compose.jetchat.b2r.FeedFragment"
+        android:label="Feed" />
 
     <fragment
         android:id="@+id/nav_home"
