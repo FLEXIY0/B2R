@@ -8,40 +8,43 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.launch
+import net.primal.android.user.accounts.active.ActiveAccountStore
 import net.primal.data.repository.b2r.chat.B2rChatMessageUi
 import net.primal.data.repository.b2r.chat.B2rChatRepository
 
 /**
  * b2r fork: drives a private 1:1 chat with a chosen peer.
  *
- * Call [open] with the local user's key and the peer's key (e.g. found via
- * search) to start observing the conversation and pull the latest snapshot.
- * Messages are end-to-end encrypted by the repository before they hit the broker.
+ * Call [open] with the peer's key (e.g. found via search); the active account's
+ * key is the local side. Messages are end-to-end encrypted by the repository
+ * before they hit the broker.
  */
 @HiltViewModel
 class B2rChatViewModel @Inject constructor(
     private val chatRepository: B2rChatRepository,
+    private val activeAccountStore: ActiveAccountStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(UiState())
     val state = _state.asStateFlow()
     private fun setState(reducer: UiState.() -> UiState) = _state.getAndUpdate { it.reducer() }
 
-    private var myPubkey: String? = null
+    private val myPubkey: String get() = activeAccountStore.activeUserId()
     private var peerPubkey: String? = null
 
-    /** Bind this view model to a conversation between [myPubkey] and [peerPubkey]. */
-    fun open(myPubkey: String, peerPubkey: String) {
-        this.myPubkey = myPubkey
+    /** Bind this view model to a conversation with [peerPubkey]. */
+    fun open(peerPubkey: String) {
         this.peerPubkey = peerPubkey
         setState { copy(peerPubkey = peerPubkey) }
-        observeConversation(myPubkey, peerPubkey)
+        observeConversation(peerPubkey)
         sync()
     }
 
-    private fun observeConversation(myPubkey: String, peerPubkey: String) =
+    private fun observeConversation(peerPubkey: String) =
         viewModelScope.launch {
-            chatRepository.observeConversation(myPubkey, peerPubkey).collect { messages ->
+            val me = myPubkey
+            if (me.isBlank()) return@launch
+            chatRepository.observeConversation(me, peerPubkey).collect { messages ->
                 setState { copy(messages = messages, loading = false) }
             }
         }
@@ -49,8 +52,9 @@ class B2rChatViewModel @Inject constructor(
     /** Pull the latest conversation snapshot from the broker. */
     fun sync() =
         viewModelScope.launch {
-            val me = myPubkey ?: return@launch
+            val me = myPubkey
             val peer = peerPubkey ?: return@launch
+            if (me.isBlank()) return@launch
             setState { copy(syncing = true) }
             runCatching { chatRepository.syncConversation(me, peer) }
             setState { copy(syncing = false) }
@@ -59,9 +63,9 @@ class B2rChatViewModel @Inject constructor(
     /** Send a message to the peer. */
     fun send(text: String) =
         viewModelScope.launch {
-            val me = myPubkey ?: return@launch
+            val me = myPubkey
             val peer = peerPubkey ?: return@launch
-            if (text.isBlank()) return@launch
+            if (me.isBlank() || text.isBlank()) return@launch
             setState { copy(sending = true) }
             runCatching { chatRepository.sendMessage(me, peer, text) }
             setState { copy(sending = false) }

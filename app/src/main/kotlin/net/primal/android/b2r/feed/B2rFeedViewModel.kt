@@ -8,20 +8,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.launch
+import net.primal.android.user.accounts.active.ActiveAccountStore
 import net.primal.data.repository.b2r.B2rFeedRepository
 import net.primal.data.repository.b2r.B2rPost
 
 /**
  * b2r fork: drives the single global shared feed.
  *
- * Binds the UI to [B2rFeedRepository]: it renders the local Room log via
- * [observeFeed], pulls the latest global snapshot from peers on open and on
- * [refresh], and appends posts via [publishPost]. Everyone who installs the app
- * shares this one feed.
+ * Renders the local Room log via [observeFeed], pulls the latest global snapshot
+ * from peers on open and on [refresh], and appends posts via [publishPost] under
+ * the active account's key. Everyone who installs the app shares this one feed.
  */
 @HiltViewModel
 class B2rFeedViewModel @Inject constructor(
     private val b2rFeedRepository: B2rFeedRepository,
+    private val activeAccountStore: ActiveAccountStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(UiState())
@@ -29,6 +30,7 @@ class B2rFeedViewModel @Inject constructor(
     private fun setState(reducer: UiState.() -> UiState) = _state.getAndUpdate { it.reducer() }
 
     init {
+        setState { copy(myPubkey = activeAccountStore.activeUserId()) }
         observeLocalFeed()
         refresh()
     }
@@ -48,15 +50,18 @@ class B2rFeedViewModel @Inject constructor(
             setState { copy(syncing = false) }
         }
 
-    /** Append a post under the given author key to the global feed. */
-    fun publishPost(authorPubkey: String, content: String) =
+    /** Append a post to the global feed under the active account's key. */
+    fun publishPost(content: String) =
         viewModelScope.launch {
+            val author = activeAccountStore.activeUserId()
+            if (author.isBlank() || content.isBlank()) return@launch
             setState { copy(publishing = true) }
-            runCatching { b2rFeedRepository.createPost(authorPubkey = authorPubkey, content = content) }
+            runCatching { b2rFeedRepository.createPost(authorPubkey = author, content = content) }
             setState { copy(publishing = false) }
         }
 
     data class UiState(
+        val myPubkey: String = "",
         val posts: List<B2rPost> = emptyList(),
         val loading: Boolean = true,
         val syncing: Boolean = false,

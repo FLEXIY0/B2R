@@ -339,6 +339,20 @@
             </intent-filter>
         </activity>
 
+        <!-- b2r fork: self-contained entry point (global feed + private chats). -->
+        <activity
+            android:name=".b2r.B2rActivity"
+            android:configChanges="orientation|screenSize|layoutDirection|screenLayout|smallestScreenSize"
+            android:exported="true"
+            android:label="b2r"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".signer.provider.SignerActivity"
             android:configChanges="orientation|screenSize|layoutDirection|screenLayout|smallestScreenSize"
