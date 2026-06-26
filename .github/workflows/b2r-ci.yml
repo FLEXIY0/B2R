@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - claude/primal-android-fork-decon-zf1ynu
+    # CI commits the rendered screenshots back here; ignore that so it doesn't loop.
+    paths-ignore:
+      - 'screenshots/**'
   pull_request:
     branches:
       - claude/primal-android-fork-decon-zf1ynu
@@ -19,6 +22,8 @@ concurrency:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -57,3 +62,20 @@ jobs:
           name: b2r-screenshots
           path: app/build/outputs/roborazzi/*.png
           if-no-files-found: error
+
+      # Commit the PNGs back to the branch so they can be viewed without an
+      # emulator or artifact download. The paths-ignore above stops this from
+      # re-triggering CI.
+      - name: Publish screenshots to branch
+        run: |
+          mkdir -p screenshots
+          cp app/build/outputs/roborazzi/*.png screenshots/
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add screenshots/*.png
+          if git diff --cached --quiet; then
+            echo "No screenshot changes"
+          else
+            git commit -m "ci: update b2r screenshots [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
