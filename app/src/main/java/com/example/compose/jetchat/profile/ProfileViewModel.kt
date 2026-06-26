@@ -22,7 +22,6 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import com.example.compose.jetchat.R
 import com.example.compose.jetchat.b2r.B2rApp
 import com.example.compose.jetchat.b2r.shortKeyLabel
 
@@ -53,7 +52,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     private fun meState() = ProfileScreenState(
         userId = ME,
-        photo = R.drawable.ali,
+        photo = null,
         name = identity.nickname.value,
         status = "Online",
         displayName = identity.keyLabel,
@@ -65,7 +64,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     private fun peerState(key: String) = ProfileScreenState(
         userId = key,
-        photo = R.drawable.someone_else,
+        photo = null,
         name = shortKeyLabel(key),
         status = "Собеседник b2r",
         displayName = key,

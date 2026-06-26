@@ -29,25 +29,25 @@
     <string name="menu_slideshow">Slideshow</string>
     <string name="conversations">Conversations</string>
     <string name="profile">Profile</string>
-    <string name="jumpBottom">Jump to bottom</string>
-    <string name="send">Send</string>
+    <string name="jumpBottom">Вниз</string>
+    <string name="send">Отправить</string>
     <string name="author_me">me</string>
     <string name="now">8:30 PM</string>
-    <string name="members">%d members</string>
-    <string name="textfield_hint">Message #composers</string>
-    <string name="swipe_to_cancel_recording">&#x25C0; Swipe to cancel</string>
-    <string name="emojis_label">Emojis</string>
-    <string name="stickers_label">Stickers</string>
+    <string name="members">%d участников</string>
+    <string name="textfield_hint">Сообщение…</string>
+    <string name="swipe_to_cancel_recording">&#x25C0; Смахните для отмены</string>
+    <string name="emojis_label">Эмодзи</string>
+    <string name="stickers_label">Стикеры</string>
 
-    <string name="message">Message</string>
-    <string name="edit_profile">Edit Profile</string>
-    <string name="profile_error">There was an error loading the profile</string>
-    <string name="bio">Bio</string>
-    <string name="display_name">Display name</string>
-    <string name="status">Status</string>
-    <string name="timezone">Timezone</string>
+    <string name="message">Написать</string>
+    <string name="edit_profile">Изменить</string>
+    <string name="profile_error">Не удалось загрузить профиль</string>
+    <string name="bio">О себе</string>
+    <string name="display_name">Ключ</string>
+    <string name="status">Статус</string>
+    <string name="timezone">Часовой пояс</string>
     <string name="twitter">Twitter</string>
-    <string name="common_channels">Channels in common</string>
+    <string name="common_channels">Общие каналы</string>
     <string name="lorem">Lorem or Ipsum</string>
 
     <!-- Accessibility descriptions -->

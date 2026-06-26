@@ -18,6 +18,8 @@ package com.example.compose.jetchat.profile
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -54,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
@@ -145,8 +149,6 @@ private fun UserInfoFields(userData: ProfileScreenState, containerHeight: Dp) {
 
         ProfileProperty(stringResource(R.string.status), userData.status)
 
-        ProfileProperty(stringResource(R.string.twitter), userData.twitter, isLink = true)
-
         userData.timeZone?.let {
             ProfileProperty(stringResource(R.string.timezone), userData.timeZone)
         }
@@ -197,7 +199,7 @@ private fun ProfileHeader(scrollState: ScrollState, data: ProfileScreenState, co
     val offset = (scrollState.value / 2)
     val offsetDp = with(LocalDensity.current) { offset.toDp() }
 
-    data.photo?.let {
+    if (data.photo != null) {
         Image(
             modifier = Modifier
                 .heightIn(max = containerHeight / 2)
@@ -209,9 +211,42 @@ private fun ProfileHeader(scrollState: ScrollState, data: ProfileScreenState, co
                     end = 16.dp,
                 )
                 .clip(CircleShape),
-            painter = painterResource(id = it),
+            painter = painterResource(id = data.photo),
             contentScale = ContentScale.Crop,
             contentDescription = null,
+        )
+    } else {
+        // b2r identities have no photo — show a monogram of the mask instead of a
+        // stock portrait.
+        MonogramAvatar(
+            name = data.name,
+            modifier = Modifier.padding(start = 16.dp, top = offsetDp, end = 16.dp),
+        )
+    }
+}
+
+@Composable
+private fun MonogramAvatar(name: String, modifier: Modifier = Modifier) {
+    val initial = name.trim().firstOrNull()?.uppercase() ?: "?"
+    Box(
+        modifier = modifier
+            .padding(top = 24.dp)
+            .size(200.dp)
+            .clip(CircleShape)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.tertiaryContainer,
+                    ),
+                ),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initial,
+            style = MaterialTheme.typography.displayLarge,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
         )
     }
 }

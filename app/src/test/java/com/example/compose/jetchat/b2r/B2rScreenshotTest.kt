@@ -95,7 +95,7 @@ class B2rScreenshotTest {
         ProfileScreen(
             userData = ProfileScreenState(
                 userId = "me",
-                photo = com.example.compose.jetchat.R.drawable.ali,
+                photo = null,
                 name = "b2r-3f9ac2",
                 status = "Online",
                 displayName = "b2r_pub3f9ac2e1b8…",
