@@ -51,7 +51,6 @@ import kotlinx.coroutines.launch
  * field to start a new chat from a peer key; with a peer selected it shows that
  * conversation rendered with Jetchat's own [Message] bubbles and [UserInput] bar.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     onNavIconPressed: () -> Unit,
@@ -59,16 +58,35 @@ fun ChatScreen(
 ) {
     val activePeer by viewModel.activePeer.collectAsState()
     if (activePeer.isBlank()) {
-        ChatList(onNavIconPressed = onNavIconPressed, viewModel = viewModel)
+        val conversations by viewModel.conversations.collectAsState()
+        ChatListContent(
+            conversations = conversations,
+            onOpenConversation = viewModel::openConversation,
+            onNavIconPressed = onNavIconPressed,
+        )
     } else {
-        ConversationPane(peer = activePeer, viewModel = viewModel)
+        val messages by viewModel.messages.collectAsState()
+        val syncing by viewModel.syncing.collectAsState()
+        ConversationPaneContent(
+            peer = activePeer,
+            messages = messages,
+            myPubKey = viewModel.myPubKey,
+            syncing = syncing,
+            onBack = viewModel::closeConversation,
+            onRefresh = viewModel::refresh,
+            onSend = viewModel::send,
+        )
     }
 }
 
+/** Stateless contacts list + start-a-chat bar. Renders standalone for tests/previews. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChatList(onNavIconPressed: () -> Unit, viewModel: ChatViewModel) {
-    val conversations by viewModel.conversations.collectAsState()
+fun ChatListContent(
+    conversations: Map<String, List<B2rChatMessage>>,
+    onOpenConversation: (String) -> Unit,
+    onNavIconPressed: () -> Unit,
+) {
     var draftKey by remember { mutableStateOf(TextFieldValue("")) }
 
     Scaffold(
@@ -84,7 +102,7 @@ private fun ChatList(onNavIconPressed: () -> Unit, viewModel: ChatViewModel) {
                 draftKey = draftKey,
                 onDraftChange = { draftKey = it },
                 onStart = {
-                    viewModel.openConversation(draftKey.text)
+                    onOpenConversation(draftKey.text)
                     draftKey = TextFieldValue("")
                 },
             )
@@ -103,7 +121,7 @@ private fun ChatList(onNavIconPressed: () -> Unit, viewModel: ChatViewModel) {
                         ContactRow(
                             label = peerLabel(peer, messages),
                             preview = messages.lastOrNull()?.content.orEmpty(),
-                            onClick = { viewModel.openConversation(peer) },
+                            onClick = { onOpenConversation(peer) },
                         )
                     }
                 }
@@ -154,11 +172,18 @@ private fun ContactRow(label: String, preview: String, onClick: () -> Unit) {
     }
 }
 
+/** Stateless single-conversation UI. Renders standalone for tests/previews. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConversationPane(peer: String, viewModel: ChatViewModel) {
-    val messages by viewModel.messages.collectAsState()
-    val syncing by viewModel.syncing.collectAsState()
+fun ConversationPaneContent(
+    peer: String,
+    messages: List<B2rChatMessage>,
+    myPubKey: String,
+    syncing: Boolean,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    onSend: (String) -> Unit,
+) {
     val scrollState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -166,7 +191,7 @@ private fun ConversationPane(peer: String, viewModel: ChatViewModel) {
         topBar = {
             JetchatAppBar(
                 // The nav icon steps back to the contacts list.
-                onNavIconPressed = { viewModel.closeConversation() },
+                onNavIconPressed = onBack,
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = peerLabel(peer, messages), style = MaterialTheme.typography.titleMedium)
@@ -178,7 +203,7 @@ private fun ConversationPane(peer: String, viewModel: ChatViewModel) {
                     }
                 },
                 actions = {
-                    TextButton(onClick = { viewModel.refresh() }) {
+                    TextButton(onClick = onRefresh) {
                         Text(if (syncing) "…" else "Обновить")
                     }
                 },
@@ -207,7 +232,7 @@ private fun ConversationPane(peer: String, viewModel: ChatViewModel) {
                     }
                 }
                 items(messages.asReversed(), key = { it.id }) { message ->
-                    val isMine = message.sender == viewModel.myPubKey
+                    val isMine = message.sender == myPubKey
                     Message(
                         onAuthorClick = {},
                         msg = message.toUiMessage(isMine),
@@ -218,7 +243,7 @@ private fun ConversationPane(peer: String, viewModel: ChatViewModel) {
                 }
             }
             UserInput(
-                onMessageSent = { viewModel.send(it) },
+                onMessageSent = onSend,
                 resetScroll = { scope.launch { scrollState.scrollToItem(0) } },
                 modifier = Modifier.navigationBarsPadding().imePadding(),
             )

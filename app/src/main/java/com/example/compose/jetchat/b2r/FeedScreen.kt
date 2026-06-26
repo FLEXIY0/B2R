@@ -40,7 +40,6 @@ import kotlinx.coroutines.launch
  * reads like a message tied to its author's mask. The app-bar nav icon opens the
  * side drawer.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
     onNavIconPressed: () -> Unit,
@@ -50,6 +49,34 @@ fun FeedScreen(
     val posts by viewModel.posts.collectAsState()
     val syncing by viewModel.syncing.collectAsState()
     val myNickname by viewModel.myNickname.collectAsState()
+    FeedContent(
+        posts = posts,
+        myPubKey = viewModel.myPubKey,
+        myNickname = myNickname,
+        syncing = syncing,
+        onRefresh = viewModel::refresh,
+        onPublish = viewModel::publish,
+        onNavIconPressed = onNavIconPressed,
+        onOpenChatWith = onOpenChatWith,
+    )
+}
+
+/**
+ * Stateless feed UI — everything it needs is passed in, so it renders standalone
+ * (screenshot tests, IDE previews) without a ViewModel or Application.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FeedContent(
+    posts: List<B2rPost>,
+    myPubKey: String,
+    myNickname: String,
+    syncing: Boolean,
+    onRefresh: () -> Unit,
+    onPublish: (String) -> Unit,
+    onNavIconPressed: () -> Unit,
+    onOpenChatWith: (String) -> Unit,
+) {
     val scrollState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -68,7 +95,7 @@ fun FeedScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = { viewModel.refresh() }) {
+                    TextButton(onClick = onRefresh) {
                         Text(if (syncing) "…" else "Обновить")
                     }
                 },
@@ -90,7 +117,7 @@ fun FeedScreen(
                     item { EmptyHint() }
                 }
                 items(posts, key = { it.id }) { post ->
-                    val isMine = post.author == viewModel.myPubKey
+                    val isMine = post.author == myPubKey
                     val authorLabel = when {
                         isMine -> myNickname
                         post.authorName.isNotBlank() -> post.authorName
@@ -107,7 +134,7 @@ fun FeedScreen(
                 }
             }
             UserInput(
-                onMessageSent = { viewModel.publish(it) },
+                onMessageSent = onPublish,
                 resetScroll = { scope.launch { scrollState.scrollToItem(0) } },
                 modifier = Modifier.navigationBarsPadding().imePadding(),
             )

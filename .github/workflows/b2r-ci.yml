@@ -44,3 +44,16 @@ jobs:
           name: b2r-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # Faithful UI preview: render the real composables to PNG on the JVM
+      # (Roborazzi + Robolectric, no emulator) and publish them as an artifact.
+      - name: Render screenshots
+        run: ./gradlew recordRoborazziDebug --stacktrace
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: b2r-screenshots
+          path: app/build/outputs/roborazzi/*.png
+          if-no-files-found: error
